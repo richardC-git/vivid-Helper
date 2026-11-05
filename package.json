@@ -9,6 +9,7 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "build:refs": "tsx scripts/build-gem-refs.ts",
+    "bundle": "npm run build && node scripts/bundle-into-scalpel.mjs",
     "sim": "tsx scripts/simulate-scan.ts"
   },
   "dependencies": {

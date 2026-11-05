@@ -2,9 +2,20 @@
 
 Scans your Path of Exile 1 inventory for **level 20 / quality 20 support gems**, identifies each one from its icon art, and prices the whole inventory at once from the poe.ninja data Scalpel already keeps. No trade API calls.
 
+## Installing
+
+The easiest way is the patched Scalpel build from the fork (`../scalpel-gems`, branch `gem-scanner`). It comes with this plugin preinstalled and exposes the price variant needed for exact 20/20 prices:
+
+1. Download `Scalpel-Setup.exe` from the fork's GitHub Releases and run it. It installs over an existing Scalpel and keeps your settings. The build is unsigned, so Windows SmartScreen will ask: click *More info* > *Run anyway*.
+2. Launch Scalpel. The **Gem Scanner** tab is already there.
+
+The fork's auto-updater follows the fork's own releases, so upstream Scalpel releases won't replace it. To get back to official Scalpel, reinstall it from upstream.
+
+To ship a new plugin version in the fork: bump `version` in `manifest.json`, run `npm run bundle`, then commit in the fork and cut a release there.
+
 ## Using it
 
-1. Load the plugin (see Development below) and bind **Scan inventory gems** in Scalpel's Settings > Macros > Plugin Hotkeys.
+1. Bind **Scan inventory gems** in Scalpel's Settings > Macros > Plugin Hotkeys.
 2. In game, open your inventory and press the hotkey. The plugin captures the game window, reads the 12x5 grid and switches to its tab.
 3. The tab lists each gem type with its count, unit price, and total, plus a grand total in chaos and divines.
 
@@ -17,7 +28,7 @@ The inventory position is computed from the game window size, using the 1080p la
 ## Limitations
 
 - **Windows only.** `captureGameWindow` returns nothing on other platforms, and PoE must be the focused window, so use the hotkey rather than the tab button.
-- **Exact 20/20 prices need a Scalpel change.** Scalpel 1.0.5 drops poe.ninja's level/quality `variant` from the price data it gives plugins, so every gem shows the range across all its listings (level 1 through 21/23c). With [`upstream/0001-price-entry-variant.patch`](upstream/0001-price-entry-variant.patch) applied in Scalpel, the plugin automatically switches to the exact `20/20` price.
+- **Exact 20/20 prices need the patched Scalpel.** Official Scalpel 1.0.5 drops poe.ninja's level/quality `variant` from the price data it gives plugins, so there every gem shows the range across all its listings (level 1 through 21/23c). The fork includes the fix ([`upstream/0001-price-entry-variant.patch`](upstream/0001-price-entry-variant.patch), also suitable as an upstream PR), and the plugin uses exact `20/20` prices when it's present.
 - Only support gems are recognised, and only the `20/20` poe.ninja line is priced. Gems that never appear as 20/20 on poe.ninja (Awakened and exceptional supports, among others) show no price.
 
 ## Development
@@ -30,7 +41,7 @@ npm run sim        # matcher accuracy on synthetic inventory renders
 npm run build:refs # regenerate src/data/gem-refs.json (new league gems)
 ```
 
-Load `dist/` with Scalpel's Settings > Developer > *Load unpacked plugin...*.
+Load `dist/` with Scalpel's Settings > Developer > *Load unpacked plugin...*, or `npm run bundle` to copy it into the fork.
 
 ### How recognition works
 
