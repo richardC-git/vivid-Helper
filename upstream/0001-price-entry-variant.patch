@@ -1,0 +1,62 @@
+diff --git a/src/main/trade/prices.test.ts b/src/main/trade/prices.test.ts
+index 05e3947..a819cfc 100644
+--- a/src/main/trade/prices.test.ts
++++ b/src/main/trade/prices.test.ts
+@@ -327,6 +327,31 @@ describe('processDenseResponse price entries', () => {
+     _setPricesForTests([])
+   })
+ 
++  it('keeps ninja variant labels so same-named gem lines stay distinguishable', () => {
++    const resp = {
++      currencyOverviews: [],
++      itemOverviews: [
++        {
++          type: 'SkillGem',
++          lines: [
++            { name: 'Multistrike Support', variant: '20/20', chaos: 74 },
++            { name: 'Multistrike Support', variant: '1', chaos: 8 },
++          ],
++        },
++        { type: 'DivinationCard', lines: [{ name: 'The Doctor', chaos: 1000 }] },
++      ],
++    }
++    const entries: PriceEntry[] = []
++    processDenseResponse(resp as never, entries)
++
++    const gems = entries.filter((e) => e.name === 'Multistrike Support')
++    expect(gems.map((e) => [e.variant, e.chaosValue])).toEqual([
++      ['20/20', 74],
++      ['1', 8],
++    ])
++    expect(entries.find((e) => e.name === 'The Doctor')).not.toHaveProperty('variant')
++  })
++
+   it('tags currency entries with category "currency", keeps display names, backfills divine', () => {
+     const resp = {
+       currencyOverviews: [
+diff --git a/src/main/trade/prices.ts b/src/main/trade/prices.ts
+index 6cb5457..4d052cb 100644
+--- a/src/main/trade/prices.ts
++++ b/src/main/trade/prices.ts
+@@ -310,6 +310,7 @@ export function processDenseResponse(resp: DenseResponse, entriesOut: PriceEntry
+         divineValue: info.divineValue,
+         graph: line.graph,
+         ninjaType: overview.type,
++        ...(line.variant ? { variant: line.variant } : {}),
+       })
+     }
+   }
+diff --git a/src/shared/contracts/prices.ts b/src/shared/contracts/prices.ts
+index 7983405..a636a0c 100644
+--- a/src/shared/contracts/prices.ts
++++ b/src/shared/contracts/prices.ts
+@@ -17,4 +17,9 @@ export interface PriceEntry {
+    *  details endpoint only accepts the raw form. Captured live on each refresh
+    *  so a new GGG category needs no code change. */
+   ninjaType?: string
++  /** poe.ninja's variant label for items it splits across several lines,
++   *  e.g. '20/20' or '21/23c' for skill gems, or a base type / link count for
++   *  uniques. Absent when the line has no variant. Lets plugins tell apart
++   *  same-named entries. */
++  variant?: string
+ }
