@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
 import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, toCsv, undoLastBatch } from './craftlog'
-import { rankExceptional } from './exceptional'
+import { rankExceptional, tradeSearchUrl } from './exceptional'
 import { BEAST_NAME, ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
 import {
@@ -369,7 +369,15 @@ function ExceptionalPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
                     </td>
                     <td style={{ ...cellPad, textAlign: 'right' }}>{formatPrice(p.chaos)}c</td>
                     <td style={{ ...cellPad, textAlign: 'right' }}>{p.listings}</td>
-                    <td style={{ ...cellPad, textAlign: 'right' }}>
+                    <td style={{ ...cellPad, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title={`Search ${p.name} on the trade site (${ctx.getLeague()}) in your browser`}
+                        onClick={() => ctx.openExternal(tradeSearchUrl(p.name, ctx.getLeague()))}
+                      >
+                        Trade
+                      </Button>{' '}
                       <Button
                         size="sm"
                         variant={exceptional?.name === p.name ? 'primary' : 'ghost'}

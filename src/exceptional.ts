@@ -44,3 +44,19 @@ export function rankExceptional(lines: GemListing[], maxPrice: number | null): E
     .map((l) => ({ name: l.name, variant: l.variant, chaos: l.chaosValue, listings: l.listingCount }))
     .sort((a, b) => b.listings - a.listings || a.chaos - b.chaos)
 }
+
+const TRADE_SEARCH = 'https://www.pathofexile.com/trade/search'
+
+/** Trade-site search for a gem, uncorrupted, cheapest first. The query rides
+ *  in the URL (`?q=`), so opening it costs no trade API request. */
+export function tradeSearchUrl(name: string, league: string): string {
+  const query = {
+    query: {
+      status: { option: 'online' },
+      type: name,
+      filters: { misc_filters: { filters: { corrupted: { option: 'false' } } } },
+    },
+    sort: { price: 'asc' },
+  }
+  return `${TRADE_SEARCH}/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify(query))}`
+}

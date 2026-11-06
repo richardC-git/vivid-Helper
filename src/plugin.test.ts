@@ -5,7 +5,7 @@ import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
 import { EMPTY_LOG, type ScanMeta, craftEv, gemCounts, observeOnly, recordScan, toCsv, undoLastBatch } from './craftlog'
-import { exceptionalNames, rankExceptional } from './exceptional'
+import { exceptionalNames, rankExceptional, tradeSearchUrl } from './exceptional'
 import { buildOverlay, formatValue } from './overlay'
 import type { ScanOutcome } from './scan'
 import { inventoryOrder, summarize } from './summary'
@@ -318,5 +318,18 @@ describe('exceptional finder', () => {
       ['Enhance Support', 8, 417],
     ])
     expect(rankExceptional(lines, null).find((p) => p.name === 'Empower Support')?.chaos).toBe(45)
+  })
+
+  it('links a cheapest-first, uncorrupted trade search in the league', () => {
+    const url = new URL(tradeSearchUrl('Gluttony Support', 'Hardcore Allflame'))
+    expect(url.origin + url.pathname).toBe('https://www.pathofexile.com/trade/search/Hardcore%20Allflame')
+    expect(JSON.parse(url.searchParams.get('q') ?? '')).toEqual({
+      query: {
+        status: { option: 'online' },
+        type: 'Gluttony Support',
+        filters: { misc_filters: { filters: { corrupted: { option: 'false' } } } },
+      },
+      sort: { price: 'asc' },
+    })
   })
 })

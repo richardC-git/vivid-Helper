@@ -51,7 +51,7 @@ Rows marked **look-alike art** are gems whose icons are too alike to tell apart 
 
 ### Exceptional gem finder
 
-Each craft also eats one exceptional support gem. Many sell for 1-10c, but on thin supply, so finding one seller with several is the hard part. The **Exceptional gem finder** section in the tab lists every exceptional support's cheapest uncorrupted poe.ninja line at or under **Max price** (10c by default), most listings first. **Choose** one to count its price in each craft's cost; its price refreshes whenever the finder reloads. The finder needs listing counts, which only the patched Scalpel (1.0.5-gems.12+) provides; poe.ninja's gem list is fetched when the section opens and cached for 30 minutes.
+Each craft also eats one exceptional support gem. Many sell for 1-10c, but on thin supply, so finding one seller with several is the hard part. The **Exceptional gem finder** section in the tab lists every exceptional support's cheapest uncorrupted poe.ninja line at or under **Max price** (10c by default), most listings first. **Trade** opens the trade site in your browser, searching that gem in Scalpel's configured league, uncorrupted, cheapest first (the search is in the link itself, so it costs no trade API request). **Choose** one to count its price in each craft's cost; its price refreshes whenever the finder reloads. The finder needs listing counts, which only the patched Scalpel (1.0.5-gems.12+) provides; poe.ninja's gem list is fetched when the section opens and cached for 30 minutes.
 
 ### Calibration
 
