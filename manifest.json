@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "gem-scanner",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Gem Scanner",
   "description": "Scan your inventory for 20/20 support gems by their icon art and price them all at once from poe.ninja.",
   "author": "bunzyy",

@@ -11,6 +11,8 @@ export interface SummaryRow {
   /** Per-gem value bounds across candidates and (without variants) price lines */
   unitMin: number | null
   unitMax: number | null
+  /** Inventory cell, set on per-cell rows (see inventoryOrder) */
+  slot?: { col: number; row: number }
 }
 
 export interface Summary {
@@ -27,6 +29,30 @@ function bounds(p: GemPrice): [number, number] | null {
   return null
 }
 
+function priceRow(key: string, cellCandidates: Candidate[], book: PriceBook): SummaryRow {
+  const candidates = [...cellCandidates]
+  const prices = candidates.map((c) => book.lookup(c.name))
+  const known = prices.map(bounds).filter((b): b is [number, number] => b !== null)
+  return {
+    key,
+    candidates,
+    count: 1,
+    prices,
+    unitMin: known.length ? Math.min(...known.map((b) => b[0])) : null,
+    unitMax: known.length ? Math.max(...known.map((b) => b[1])) : null,
+  }
+}
+
+/** One row per occupied cell in the order PoE fills the inventory: down each
+ *  column, then to the next column. Unreadable cells keep their place (with
+ *  no candidates) so the list lines up with the inventory. */
+export function inventoryOrder(cells: CellResult[], book: PriceBook): SummaryRow[] {
+  return cells
+    .filter((c) => c.status !== 'empty')
+    .sort((a, b) => a.col - b.col || a.row - b.row)
+    .map((c) => ({ ...priceRow(`${c.col},${c.row}`, c.status === 'matched' ? c.candidates : [], book), slot: { col: c.col, row: c.row } }))
+}
+
 /** Group matched cells by their candidate set and price each group. */
 export function summarize(cells: CellResult[], book: PriceBook): Summary {
   const groups = new Map<string, SummaryRow>()
@@ -41,17 +67,7 @@ export function summarize(cells: CellResult[], book: PriceBook): Summary {
       row.count++
       continue
     }
-    const candidates = [...cell.candidates]
-    const prices = candidates.map((c) => book.lookup(c.name))
-    const known = prices.map(bounds).filter((b): b is [number, number] => b !== null)
-    groups.set(key, {
-      key,
-      candidates,
-      count: 1,
-      prices,
-      unitMin: known.length ? Math.min(...known.map((b) => b[0])) : null,
-      unitMax: known.length ? Math.max(...known.map((b) => b[1])) : null,
-    })
+    groups.set(key, priceRow(key, cell.candidates, book))
   }
   const rows = [...groups.values()].sort((a, b) => (b.unitMax ?? -1) * b.count - (a.unitMax ?? -1) * a.count)
   return {

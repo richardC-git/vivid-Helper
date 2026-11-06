@@ -30,6 +30,10 @@ export async function captureAndScan(ctx: ScalpelPluginContext, cal: Calibration
 }
 
 export const CALIBRATION_KEY = 'calibration'
+export const ORDER_KEY = 'order'
+
+/** Results list order: grouped by value, or one row per cell as laid out. */
+export type ListOrder = 'value' | 'inventory'
 
 export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
   if (getState().scanning) return

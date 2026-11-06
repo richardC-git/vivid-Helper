@@ -4,7 +4,7 @@ import { Diamonds } from '@icon-park/react'
 import type { ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
 import { Panel } from './Panel'
-import { CALIBRATION_KEY, runScan } from './scan'
+import { CALIBRATION_KEY, type ListOrder, ORDER_KEY, runScan } from './scan'
 import { setState } from './store'
 
 let root: Root | null = null
@@ -12,6 +12,8 @@ let root: Root | null = null
 export default async function activate(ctx: ScalpelPluginContext): Promise<void> {
   const saved = await ctx.storage.get<Calibration>(CALIBRATION_KEY)
   if (saved) setState({ calibration: { ...DEFAULT_CALIBRATION, ...saved } })
+  const order = await ctx.storage.get<ListOrder>(ORDER_KEY)
+  if (order === 'value' || order === 'inventory') setState({ order })
 
   // Capture first, then switch tabs: the capture needs PoE focused.
   ctx.registerHotkey({ label: 'Scan inventory gems' }, async () => {

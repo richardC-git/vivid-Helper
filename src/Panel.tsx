@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
 import { type PriceBook, GEM_CATEGORY, TARGET_VARIANT, buildPriceBook } from './pricing'
-import { CALIBRATION_KEY, type ScanOutcome, runScan, scanCapture } from './scan'
+import { CALIBRATION_KEY, ORDER_KEY, type ListOrder, type ScanOutcome, runScan, scanCapture } from './scan'
 import { setState, useStore } from './store'
-import { type SummaryRow, summarize } from './summary'
+import { type SummaryRow, inventoryOrder, summarize } from './summary'
 
 function usePriceBook(ctx: ScalpelPluginContext): PriceBook | null {
   const [book, setBook] = useState<PriceBook | null>(null)
@@ -40,9 +40,12 @@ function Row({ row }: { row: SummaryRow }): JSX.Element {
   return (
     <tr style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <td style={cellPad}>
-        <img src={row.candidates[0].icon} alt="" width={28} height={28} style={{ display: 'block' }} />
+        {row.candidates.length > 0 && (
+          <img src={row.candidates[0].icon} alt="" width={28} height={28} style={{ display: 'block' }} />
+        )}
       </td>
       <td style={cellPad}>
+        {row.candidates.length === 0 && <span style={muted}>Unreadable</span>}
         {row.candidates.map((c, i) => (
           <div key={c.name} style={i > 0 ? muted : undefined}>
             {i > 0 ? 'or ' : ''}
@@ -52,13 +55,20 @@ function Row({ row }: { row: SummaryRow }): JSX.Element {
         ))}
         {ambiguous && <div style={{ ...muted, fontSize: 11 }}>Look-alike art: hover it in game to confirm</div>}
       </td>
-      <td style={{ ...cellPad, textAlign: 'right' }}>{row.count}</td>
+      <td style={{ ...cellPad, textAlign: 'right' }}>
+        {row.slot ? <span style={muted}>{slotLabel(row.slot)}</span> : row.count}
+      </td>
       <td style={{ ...cellPad, textAlign: 'right' }}>{priceRange(row.unitMin, row.unitMax)}</td>
       <td style={{ ...cellPad, textAlign: 'right' }}>
         {priceRange(row.unitMin === null ? null : row.unitMin * row.count, row.unitMax === null ? null : row.unitMax * row.count)}
       </td>
     </tr>
   )
+}
+
+/** Column then row, 1-based, matching the down-then-across fill order. */
+function slotLabel(slot: { col: number; row: number }): string {
+  return `${slot.col + 1}-${slot.row + 1}`
 }
 
 function priceBounds(row: SummaryRow, i: number): [number | null, number | null] {
@@ -158,9 +168,17 @@ function CalibrationPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 }
 
 export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { scan, scanning, error } = useStore()
+  const { scan, scanning, error, order } = useStore()
   const book = usePriceBook(ctx)
   const summary = useMemo(() => (scan && book ? summarize(scan.cells, book) : null), [scan, book])
+  const rows = useMemo(
+    () => (scan && book && summary ? (order === 'inventory' ? inventoryOrder(scan.cells, book) : summary.rows) : []),
+    [scan, book, summary, order],
+  )
+  const setOrder = (next: ListOrder): void => {
+    setState({ order: next })
+    void ctx.storage.set(ORDER_KEY, next)
+  }
 
   return (
     <div style={{ padding: 12, color: 'var(--text)', fontSize: 13 }}>
@@ -190,6 +208,15 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 
       {summary && (
         <>
+          <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ ...muted, fontSize: 12 }}>List:</span>
+            <Button size="sm" variant={order === 'value' ? 'primary' : 'ghost'} onClick={() => setOrder('value')}>
+              By value
+            </Button>
+            <Button size="sm" variant={order === 'inventory' ? 'primary' : 'ghost'} onClick={() => setOrder('inventory')}>
+              Inventory order
+            </Button>
+          </div>
           <div style={{ marginTop: 12 }}>
             <strong>{summary.gems}</strong> gems
             {summary.unknown > 0 && <span style={muted}> - {summary.unknown} cells unreadable</span>}
@@ -207,13 +234,15 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
               <tr style={{ ...muted, textAlign: 'left', fontSize: 11 }}>
                 <th />
                 <th style={cellPad}>Gem ({TARGET_VARIANT})</th>
-                <th style={{ ...cellPad, textAlign: 'right' }}>Qty</th>
+                <th style={{ ...cellPad, textAlign: 'right' }}>
+                  {order === 'inventory' ? <span title="Column-row, counted down each column">Slot</span> : 'Qty'}
+                </th>
                 <th style={{ ...cellPad, textAlign: 'right' }}>Each</th>
                 <th style={{ ...cellPad, textAlign: 'right' }}>Total</th>
               </tr>
             </thead>
             <tbody>
-              {summary.rows.map((r) => (
+              {rows.map((r) => (
                 <Row key={r.key} row={r} />
               ))}
             </tbody>

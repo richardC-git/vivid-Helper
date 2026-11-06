@@ -4,7 +4,7 @@ import { FP_SIZE, type Fingerprint } from './fingerprint'
 import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
-import { summarize } from './summary'
+import { inventoryOrder, summarize } from './summary'
 
 const gem = (name: string, chaosValue: number, variant?: string): PriceEntry =>
   ({ name, category: 'skill-gem', chaosValue, ...(variant === undefined ? {} : { variant }) }) as PriceEntry
@@ -74,6 +74,14 @@ describe('matchCell', () => {
     const n = FP_SIZE * FP_SIZE
     expect(matchCell({ rgb: new Uint8Array(n * 3).fill(12), alpha: new Uint8Array(n).fill(255) }).status).toBe('empty')
   })
+
+  it('treats the faint tiled emblem of a real empty cell as empty', () => {
+    // Real empty cells measure a luma std dev of 5-7 around a mean of ~10.
+    const n = FP_SIZE * FP_SIZE
+    const rgb = new Uint8Array(n * 3)
+    for (let k = 0; k < n; k++) rgb.fill(k % 3 === 0 ? 22 : 4, k * 3, k * 3 + 3)
+    expect(matchCell({ rgb, alpha: new Uint8Array(n).fill(255) }).status).toBe('empty')
+  })
 })
 
 describe('summarize', () => {
@@ -91,5 +99,28 @@ describe('summarize', () => {
     expect(s.rows[0]).toMatchObject({ key: 'A Support', count: 2, unitMin: 10 })
     expect(s.totalMin).toBe(23)
     expect(s.totalMax).toBe(23)
+  })
+})
+
+describe('inventoryOrder', () => {
+  it('lists cells down each column, keeping unreadable cells in place', () => {
+    const book = buildPriceBook([gem('A Support', 10, '20/20'), gem('B Support', 3, '20/20')], [], null)
+    const at = (col: number, row: number, name?: string) => ({
+      col,
+      row,
+      status: name ? ('matched' as const) : ('unknown' as const),
+      candidates: name ? [{ name, icon: '', distance: 1 }] : [],
+    })
+    const rows = inventoryOrder(
+      [at(1, 0, 'A Support'), { col: 2, row: 0, status: 'empty', candidates: [] }, at(0, 1), at(0, 0, 'B Support')],
+      book,
+    )
+    expect(rows.map((r) => r.slot)).toEqual([
+      { col: 0, row: 0 },
+      { col: 0, row: 1 },
+      { col: 1, row: 0 },
+    ])
+    expect(rows[0]).toMatchObject({ count: 1, unitMin: 3 })
+    expect(rows[1].candidates).toEqual([])
   })
 })

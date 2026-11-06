@@ -18,6 +18,7 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
 1. Bind **Scan inventory gems** in Scalpel's Settings > Macros > Plugin Hotkeys.
 2. In game, open your inventory and press the hotkey. The plugin captures the game window, reads the 12x5 grid and switches to its tab.
 3. The tab lists each gem type with its count, unit price, and total, plus a grand total in chaos and divines.
+4. Switch the list to **Inventory order** to get one row per gem in the order PoE fills the inventory (down each column, then across), with its slot as column-row, so you can work through the inventory alongside it. The choice is remembered.
 
 Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.
 

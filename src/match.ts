@@ -16,7 +16,8 @@ export const GEM_REFS: GemRef[] = refsData.gems.map((g) => ({
 
 // Thresholds on the 0..255 scale of `distance` / `lumaStdDev`. Tuned against
 // synthetic renders (npm run sim); adjust against real captures if needed.
-export const EMPTY_STDDEV = 6
+// Real captures: empty cells (dark tiled emblem) measure 5-7, gems 38+.
+export const EMPTY_STDDEV = 20
 // Correct synthetic matches peak around 24; the slack is for real captures.
 export const MATCH_MAX_DISTANCE = 40
 /** Best and runner-up closer than this are flagged as uncertain. */
