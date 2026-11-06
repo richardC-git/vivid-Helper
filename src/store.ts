@@ -2,7 +2,7 @@
 // Scalpel's main overlay process, so a plain store is enough.
 import { useSyncExternalStore } from 'react'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
-import { type CraftLog, EMPTY_LOG, type RecordOutcome } from './craftlog'
+import { type CraftArchive, type CraftLog, EMPTY_ARCHIVE, EMPTY_LOG, type RecordOutcome } from './craftlog'
 import type { GemListingsResult } from '@scalpelpoe/plugin-sdk'
 import type { PriceBook } from './pricing'
 import type { ListOrder, ScanOutcome } from './scan'
@@ -37,6 +37,9 @@ export interface State {
   exceptional: { name: string; chaos: number } | null
   /** User's cost per yellow beast (poe.ninja doesn't price them) */
   yellowBeast: number | null
+  archive: CraftArchive
+  /** EV sample: every league's occurrences, or only the current league's */
+  sampleScope: 'all' | 'league'
 }
 
 let state: State = {
@@ -58,6 +61,8 @@ let state: State = {
   exceptionalMax: 10,
   exceptional: null,
   yellowBeast: null,
+  archive: EMPTY_ARCHIVE,
+  sampleScope: 'all',
 }
 const listeners = new Set<() => void>()
 

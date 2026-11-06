@@ -39,6 +39,8 @@ The **Craft log** section in the tab shows, at current poe.ninja prices:
 - **Profit per craft** against what a craft costs: the Vivid Watcher (poe.ninja's price, or one you enter), plus 3 yellow beasts at a price you enter, plus the exceptional gem chosen in the finder. Unset ingredients count as free and the cost line says so. **Refresh prices** asks Scalpel to re-fetch poe.ninja now.
 - The gems contributing most of the value.
 
+**Leagues.** The first scan that logs gems in a new league moves the earlier leagues' scans into an archive (storage key `craftLogArchive`), kept whole. Gem occurrences are about the craft, not the economy, so archived scans keep counting towards the EV sample under **Sample: All leagues**, while every EV is priced at the current league. **This league** narrows the sample to scans logged in the current league, in case the craft's odds change. **Clear log** clears only the current league's scans; **Clear archive** deletes the archive; **Copy CSV** exports both, oldest first.
+
 The log lives in Scalpel's plugin storage (`%APPDATA%\scalpel\plugins\gem-scanner\storage.json`, key `craftLog`): one entry per logged scan with its time, league, plugin version and icon-reference version, and for each gem its slot, name (look-alikes as all candidates), match distance and poe.ninja value at the time. **Copy CSV** puts it on the clipboard as one row per gem:
 
 ```

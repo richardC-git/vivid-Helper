@@ -4,7 +4,19 @@ import { FP_SIZE, type Fingerprint } from './fingerprint'
 import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
-import { EMPTY_LOG, type ScanMeta, craftEv, gemCounts, observeOnly, recordScan, toCsv, undoLastBatch } from './craftlog'
+import {
+  EMPTY_ARCHIVE,
+  EMPTY_LOG,
+  type ScanMeta,
+  archiveOtherLeagues,
+  archivedBatches,
+  craftEv,
+  gemCounts,
+  observeOnly,
+  recordScan,
+  toCsv,
+  undoLastBatch,
+} from './craftlog'
 import { exceptionalNames, rankExceptional, tradeSearchUrl } from './exceptional'
 import { buildOverlay, formatValue } from './overlay'
 import type { ScanOutcome } from './scan'
@@ -209,7 +221,7 @@ describe('craft log', () => {
     const again = recordScan(one.log, first, meta(2))
     expect(again.outcome).toEqual({ kind: 'none-new' })
     expect(again.log.batches).toHaveLength(1)
-    expect(gemCounts(again.log).get('Communion Support | Minion Pact Support')).toBe(1)
+    expect(gemCounts(again.log.batches).get('Communion Support | Minion Pact Support')).toBe(1)
   })
 
   it('logs only the changed slots after selling some and crafting more', () => {
@@ -217,8 +229,8 @@ describe('craft log', () => {
     // A sold, B kept, a new gem where A was and one in a fresh slot.
     const next = recordScan(log, [at(0, 0, 'C Support'), at(0, 1, 'B Support'), at(2, 0, 'A Support')], meta(2))
     expect(next.outcome).toEqual({ kind: 'recorded', count: 2, newRun: false })
-    expect(gemCounts(next.log).get('A Support')).toBe(2)
-    expect(gemCounts(next.log).get('B Support')).toBe(1)
+    expect(gemCounts(next.log.batches).get('A Support')).toBe(2)
+    expect(gemCounts(next.log.batches).get('B Support')).toBe(1)
   })
 
   it("doesn't recount a gem that misread for one scan", () => {
@@ -233,14 +245,14 @@ describe('craft log', () => {
     const run2 = [at(0, 0, 'Old0 Support'), ...Array.from({ length: 11 }, (_, i) => at(i + 1, 0, `New${i} Support`))]
     const next = recordScan(log, run2, meta(2))
     expect(next.outcome).toEqual({ kind: 'recorded', count: 12, newRun: true })
-    expect(gemCounts(next.log).get('Old0 Support')).toBe(2)
+    expect(gemCounts(next.log.batches).get('Old0 Support')).toBe(2)
   })
 
   it('records league, versions, distance and the price at log time', () => {
     const { log } = recordScan(EMPTY_LOG, first, meta(Date.UTC(2026, 10, 5)))
     expect(log.batches[0]).toMatchObject({ league: 'Allflame', plugin: '0.4.1', refs: 'abc' })
     expect(log.batches[0].gems[0]).toMatchObject({ slot: '0,0', key: 'A Support', distance: 1, chaos: 7 })
-    expect(toCsv(log).split('\n').slice(0, 2)).toEqual([
+    expect(toCsv(log.batches).split('\n').slice(0, 2)).toEqual([
       'logged_at,league,slot,gem,candidates,match_distance,chaos_at_log,plugin,refs',
       '2026-11-05T00:00:00.000Z,Allflame,1-1,A Support,1,1,7,0.4.1,abc',
     ])
@@ -251,6 +263,18 @@ describe('craft log', () => {
     expect(off.outcome.kind).toBe('disabled')
     expect(off.log.batches).toHaveLength(0)
     expect(recordScan(off.log, first, meta(2)).outcome.kind).toBe('none-new')
+  })
+
+  it("archives other leagues' scans whole, keeping their occurrences", () => {
+    const old = recordScan(EMPTY_LOG, first, meta(1)).log
+    const legacy = { ...old, batches: [...old.batches, { at: 0, gems: [{ slot: '5,0', key: 'Z Support' }] }] }
+    const { log, archive, moved } = archiveOtherLeagues(legacy, EMPTY_ARCHIVE, 'Keepers')
+    expect(moved).toBe(2)
+    expect(log.batches).toHaveLength(0)
+    expect(log.snapshot).toEqual(legacy.snapshot)
+    expect(Object.keys(archive.leagues).sort()).toEqual(['(unknown league)', 'Allflame'])
+    expect(gemCounts(archivedBatches(archive)).get('A Support')).toBe(1)
+    expect(archiveOtherLeagues(log, archive, 'Keepers').moved).toBe(0)
   })
 
   it('skips scans that are mostly unreadable', () => {
@@ -274,7 +298,7 @@ describe('craft log', () => {
     )
     const log = recordScan(EMPTY_LOG, [...first.slice(0, 1), at(0, 1, 'Unlisted Support'), first[2]], meta(1)).log
     // Values 30, 0, and the look-alike's mean of 10 and 20 = 15.
-    const ev = craftEv(log, book, 20)
+    const ev = craftEv(log.batches, book, 20)
     expect(ev.gems).toBe(3)
     expect(ev.unpriced).toBe(1)
     expect(ev.meanGem).toBe(15)

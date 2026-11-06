@@ -146,10 +146,51 @@ export function undoLastBatch(log: CraftLog): CraftLog {
   return { ...log, batches: log.batches.slice(0, -1), snapshot }
 }
 
-export function gemCounts(log: CraftLog): Map<GemKey, number> {
+export function gemCounts(batches: Batch[]): Map<GemKey, number> {
   const counts = new Map<GemKey, number>()
-  for (const b of log.batches) for (const g of b.gems) counts.set(g.key, (counts.get(g.key) ?? 0) + 1)
+  for (const b of batches) for (const g of b.gems) counts.set(g.key, (counts.get(g.key) ?? 0) + 1)
   return counts
+}
+
+export const ARCHIVE_KEY = 'craftLogArchive'
+/** Batches logged before leagues were recorded (plugin < 0.4.1) */
+export const UNKNOWN_LEAGUE = '(unknown league)'
+
+/** Past leagues' scans, kept whole for export and research. Their gem
+ *  occurrences still count towards the EV sample; their prices don't, since
+ *  EV always prices at the current league. */
+export interface CraftArchive {
+  leagues: Record<string, Batch[]>
+}
+
+export const EMPTY_ARCHIVE: CraftArchive = { leagues: {} }
+
+export function archivedBatches(archive: CraftArchive): Batch[] {
+  return Object.values(archive.leagues).flat()
+}
+
+/** On the first scan logged in a new league, move every other league's
+ *  batches out of the active log. Returns the inputs unchanged when there's
+ *  nothing to move. The slot memory stays, since the inventory hasn't changed. */
+export function archiveOtherLeagues(
+  log: CraftLog,
+  archive: CraftArchive,
+  league: string,
+): { log: CraftLog; archive: CraftArchive; moved: number } {
+  const keep: Batch[] = []
+  const leagues = { ...archive.leagues }
+  let moved = 0
+  for (const b of log.batches) {
+    const from = b.league || UNKNOWN_LEAGUE
+    if (from === league) {
+      keep.push(b)
+      continue
+    }
+    leagues[from] = [...(leagues[from] ?? []), b]
+    moved++
+  }
+  if (!moved) return { log, archive, moved }
+  return { log: { ...log, batches: keep }, archive: { leagues }, moved }
 }
 
 function midpoint(p: GemPrice): number | null {
@@ -193,8 +234,8 @@ export interface CraftEv {
 /** Sample estimate of a craft's value: GEMS_PER_BEAST x the mean recorded gem
  *  value, with unpriced gems counted as worth nothing, against what one craft
  *  costs. */
-export function craftEv(log: CraftLog, book: PriceBook, craftCost: number | null): CraftEv {
-  const counts = gemCounts(log)
+export function craftEv(batches: Batch[], book: PriceBook, craftCost: number | null): CraftEv {
+  const counts = gemCounts(batches)
   let n = 0
   let sum = 0
   let sumSq = 0
@@ -236,11 +277,12 @@ function csvField(v: string | number | null | undefined): string {
   return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
 }
 
-/** One row per logged gem, for spreadsheets and offline analysis. Slots are
- *  1-based column-row, matching the tab's inventory-order view. */
-export function toCsv(log: CraftLog): string {
+/** One row per logged gem, oldest first, for spreadsheets and offline
+ *  analysis. Slots are 1-based column-row, matching the tab's inventory-order
+ *  view. */
+export function toCsv(batches: Batch[]): string {
   const lines = [CSV_COLUMNS.join(',')]
-  for (const b of log.batches) {
+  for (const b of [...batches].sort((x, y) => x.at - y.at)) {
     for (const g of b.gems) {
       const [col, row] = g.slot.split(',').map(Number)
       lines.push(

@@ -1,6 +1,14 @@
 import type { GameCapture, ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, type GridRect, inventoryGrid } from './grid'
-import { LOG_KEY, type RecordOutcome, gemValue, observeOnly, recordScan } from './craftlog'
+import {
+  ARCHIVE_KEY,
+  LOG_KEY,
+  type RecordOutcome,
+  archiveOtherLeagues,
+  gemValue,
+  observeOnly,
+  recordScan,
+} from './craftlog'
 import { REFS_SOURCE, type ScanResult, scanGrid } from './match'
 import { ensurePriceBook } from './prices'
 import { OVERLAY_KEY, type OverlayPayload, buildOverlay, overlayGrid } from './overlay'
@@ -42,6 +50,7 @@ export const LOGGING_KEY = 'logging'
 export const EXCEPTIONAL_KEY = 'exceptional'
 export const EXCEPTIONAL_MAX_KEY = 'exceptionalMax'
 export const YELLOW_BEAST_KEY = 'yellowBeast'
+export const SAMPLE_SCOPE_KEY = 'sampleScope'
 
 /** Results list order: grouped by value, or one row per cell as laid out. */
 export type ListOrder = 'value' | 'inventory'
@@ -66,7 +75,18 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
       refs: REFS_SOURCE,
       value: (key) => (book ? gemValue(key, book) : null),
     })
-    const { log, outcome } = getState().logging ? recorded : observeOnly(prev, recorded)
+    let { log, outcome } = getState().logging ? recorded : observeOnly(prev, recorded)
+    // The first gems logged in a new league move earlier leagues' scans to
+    // the archive. Only on a real log, so a quick rescan while Scalpel is set
+    // to another league doesn't shuffle anything.
+    if (outcome.kind === 'recorded') {
+      const moved = archiveOtherLeagues(log, getState().archive, ctx.getLeague())
+      if (moved.moved) {
+        log = moved.log
+        setState({ archive: moved.archive })
+        await ctx.storage.set(ARCHIVE_KEY, moved.archive)
+      }
+    }
     setState({ scan, log, logStatus: outcome })
     if (outcome.kind !== 'skipped') await ctx.storage.set(LOG_KEY, log)
   } catch (e) {

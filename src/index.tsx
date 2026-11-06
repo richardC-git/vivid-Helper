@@ -5,7 +5,7 @@ import type { ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
 import { OverlayView } from './OverlayView'
 import { Panel } from './Panel'
-import { type CraftLog, EMPTY_LOG, LOG_KEY } from './craftlog'
+import { ARCHIVE_KEY, type CraftArchive, type CraftLog, EMPTY_LOG, LOG_KEY } from './craftlog'
 import {
   CALIBRATION_KEY,
   BEAST_PRICE_KEY,
@@ -16,6 +16,7 @@ import {
   LOGGING_KEY,
   type ListOrder,
   ORDER_KEY,
+  SAMPLE_SCOPE_KEY,
   THRESHOLD_KEY,
   YELLOW_BEAST_KEY,
   publishOverlay,
@@ -42,6 +43,10 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   if ((await ctx.storage.get<boolean>(CHAOS_ONLY_KEY)) === true) setState({ chaosOnly: true })
   const log = await ctx.storage.get<CraftLog>(LOG_KEY)
   if (log?.batches && log.snapshot) setState({ log: { ...EMPTY_LOG, ...log } })
+  const archive = await ctx.storage.get<CraftArchive>(ARCHIVE_KEY)
+  if (archive?.leagues) setState({ archive })
+  const sampleScope = await ctx.storage.get<string>(SAMPLE_SCOPE_KEY)
+  if (sampleScope === 'all' || sampleScope === 'league') setState({ sampleScope })
   const beastOverride = await ctx.storage.get<number>(BEAST_PRICE_KEY)
   if (typeof beastOverride === 'number') setState({ beastOverride })
   if ((await ctx.storage.get<boolean>(LOGGING_KEY)) === false) setState({ logging: false })

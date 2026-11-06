@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
-import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, toCsv, undoLastBatch } from './craftlog'
+import {
+  ARCHIVE_KEY,
+  EMPTY_ARCHIVE,
+  EMPTY_LOG,
+  GEMS_PER_BEAST,
+  LOG_KEY,
+  archivedBatches,
+  craftEv,
+  toCsv,
+  undoLastBatch,
+} from './craftlog'
 import { rankExceptional, tradeSearchUrl } from './exceptional'
 import { BEAST_NAME, ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
@@ -11,6 +21,7 @@ import {
   EXCEPTIONAL_KEY,
   EXCEPTIONAL_MAX_KEY,
   LOGGING_KEY,
+  SAMPLE_SCOPE_KEY,
   YELLOW_BEAST_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
@@ -125,13 +136,28 @@ const YELLOW_BEASTS = 3
 const SMALL_SAMPLE = 90
 
 function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { log, book, beastChaos, beastOverride, logging, yellowBeast, exceptional } = useStore()
+  const { log, book, beastChaos, beastOverride, logging, yellowBeast, exceptional, archive, sampleScope } = useStore()
   const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmClearArchive, setConfirmClearArchive] = useState(false)
+  const league = ctx.getLeague()
+  const allBatches = useMemo(() => [...archivedBatches(archive), ...log.batches], [archive, log])
+  // "This league" reads the archive too, in case a league's scans were
+  // archived and the user came back to it.
+  const sample = useMemo(
+    () => (sampleScope === 'all' ? allBatches : allBatches.filter((b) => b.league === league)),
+    [allBatches, sampleScope, league],
+  )
+  const countGems = (bs: typeof allBatches): number => bs.reduce((n, b) => n + b.gems.length, 0)
+  const archivedLeagues = Object.entries(archive.leagues).filter(([, bs]) => bs.length)
+  const setScope = (scope: 'all' | 'league'): void => {
+    setState({ sampleScope: scope })
+    void ctx.storage.set(SAMPLE_SCOPE_KEY, scope)
+  }
   const [copied, setCopied] = useState<string | null>(null)
   const copyCsv = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(toCsv(log))
-      setCopied(`Copied ${log.batches.reduce((n, b) => n + b.gems.length, 0)} rows`)
+      await navigator.clipboard.writeText(toCsv(allBatches))
+      setCopied(`Copied ${countGems(allBatches)} rows`)
     } catch {
       setCopied("Couldn't reach the clipboard")
     }
@@ -140,7 +166,7 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   // One craft: the Vivid Watcher, its yellow beasts and an exceptional gem.
   // Unset ingredient prices count as free, and say so below.
   const craftCost = beastPrice === null ? null : beastPrice + YELLOW_BEASTS * (yellowBeast ?? 0) + (exceptional?.chaos ?? 0)
-  const ev = useMemo(() => (book ? craftEv(log, book, craftCost) : null), [log, book, craftCost])
+  const ev = useMemo(() => (book ? craftEv(sample, book, craftCost) : null), [sample, book, craftCost])
   const setYellowBeast = (v: number | null): void => {
     const value = v !== null && v > 0 ? v : null
     setState({ yellowBeast: value })
@@ -164,7 +190,7 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   return (
     <details open style={{ marginTop: 16 }}>
       <summary style={{ cursor: 'pointer' }}>
-        Craft log{ev && ev.gems > 0 ? ` - ${ev.gems} gems from ${log.batches.length} scans` : ''}
+        Craft log{log.batches.length ? ` - ${countGems(log.batches)} gems from ${log.batches.length} scans in ${league}` : ''}
         {!logging && <span style={{ color: '#f5a623' }}> (logging off)</span>}
       </summary>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
@@ -215,6 +241,17 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
         </div>
       )}
 
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 }}>
+        <span style={{ ...muted, fontSize: 12 }}>Sample:</span>
+        <Button size="sm" variant={sampleScope === 'all' ? 'primary' : 'ghost'} onClick={() => setScope('all')}>
+          All leagues ({countGems(allBatches)})
+        </Button>
+        <Button size="sm" variant={sampleScope === 'league' ? 'primary' : 'ghost'} onClick={() => setScope('league')}>
+          This league ({countGems(allBatches.filter((b) => b.league === league))})
+        </Button>
+        <span style={{ ...muted, fontSize: 12 }}>Gem counts; prices are always {league}&apos;s.</span>
+      </div>
+
       {ev && ev.gems > 0 && (
         <div style={{ marginTop: 10, lineHeight: 1.6 }}>
           <div>
@@ -232,7 +269,7 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
             </div>
           )}
           <div style={{ ...muted, fontSize: 12 }}>
-            Mean gem {c(ev.meanGem)} over {ev.gems} gems (~{Math.floor(ev.gems / GEMS_PER_BEAST)} beasts)
+            Mean gem {c(ev.meanGem)} over {ev.gems} gems (~{Math.floor(ev.gems / GEMS_PER_BEAST)} crafts)
             {ev.unpriced > 0 && `; ${ev.unpriced} without a 20/20 price counted as 0`}
             {ev.gems < SMALL_SAMPLE && '. Small sample: a few lucky gems swing this a lot'}
             . Uses current prices.
@@ -278,10 +315,32 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
           }}
           onBlur={() => setConfirmClear(false)}
         >
-          {confirmClear ? 'Click again to clear the log' : 'Clear log'}
+          {confirmClear ? `Click again to clear ${league}'s log` : 'Clear log'}
         </Button>
         {copied && <span style={{ ...muted, fontSize: 12 }}>{copied}</span>}
       </div>
+      {archivedLeagues.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, alignItems: 'center' }}>
+          <span style={{ ...muted, fontSize: 12 }}>
+            Archived:{' '}
+            {archivedLeagues.map(([name, bs]) => `${name} ${countGems(bs)} gems`).join(', ')}. Still counted under
+            All leagues and in Copy CSV.
+          </span>
+          <Button
+            size="sm"
+            variant={confirmClearArchive ? 'danger' : 'ghost'}
+            onClick={() => {
+              if (!confirmClearArchive) return setConfirmClearArchive(true)
+              setState({ archive: EMPTY_ARCHIVE })
+              void ctx.storage.set(ARCHIVE_KEY, EMPTY_ARCHIVE)
+              setConfirmClearArchive(false)
+            }}
+            onBlur={() => setConfirmClearArchive(false)}
+          >
+            {confirmClearArchive ? 'Click again to delete the archive' : 'Clear archive'}
+          </Button>
+        </div>
+      )}
     </details>
   )
 }
