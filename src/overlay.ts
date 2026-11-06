@@ -77,7 +77,9 @@ export function buildOverlay(
     }
     const value = priceRow('', cell.candidates, book).unitMax
     if (value === null) {
-      if (!hideUnpriced) marks.push({ ...rect, kind: 'unpriced', label: 'no price' })
+      // Hidden ones are faded like cheap gems, not dropped, so every gem
+      // still shows whether it was read.
+      marks.push({ ...rect, kind: hideUnpriced ? 'below' : 'unpriced', label: 'no price' })
       continue
     }
     const ambiguous = cell.candidates.length > 1

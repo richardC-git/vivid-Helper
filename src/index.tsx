@@ -10,11 +10,14 @@ import {
   CALIBRATION_KEY,
   BEAST_PRICE_KEY,
   CHAOS_ONLY_KEY,
+  EXCEPTIONAL_KEY,
+  EXCEPTIONAL_MAX_KEY,
   HIDE_UNPRICED_KEY,
   LOGGING_KEY,
   type ListOrder,
   ORDER_KEY,
   THRESHOLD_KEY,
+  YELLOW_BEAST_KEY,
   publishOverlay,
   runScan,
 } from './scan'
@@ -42,6 +45,12 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   const beastOverride = await ctx.storage.get<number>(BEAST_PRICE_KEY)
   if (typeof beastOverride === 'number') setState({ beastOverride })
   if ((await ctx.storage.get<boolean>(LOGGING_KEY)) === false) setState({ logging: false })
+  const exceptional = await ctx.storage.get<{ name: string; chaos: number }>(EXCEPTIONAL_KEY)
+  if (exceptional && typeof exceptional.name === 'string' && typeof exceptional.chaos === 'number') setState({ exceptional })
+  const exceptionalMax = await ctx.storage.get<number>(EXCEPTIONAL_MAX_KEY)
+  if (typeof exceptionalMax === 'number') setState({ exceptionalMax })
+  const yellowBeast = await ctx.storage.get<number>(YELLOW_BEAST_KEY)
+  if (typeof yellowBeast === 'number') setState({ yellowBeast })
 
   // Keep the overlay in step with rescans (incl. calibration tweaks), price
   // refreshes and threshold changes.

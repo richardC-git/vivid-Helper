@@ -39,6 +39,9 @@ export const HIDE_UNPRICED_KEY = 'hideUnpriced'
 export const CHAOS_ONLY_KEY = 'chaosOnly'
 export const BEAST_PRICE_KEY = 'beastPrice'
 export const LOGGING_KEY = 'logging'
+export const EXCEPTIONAL_KEY = 'exceptional'
+export const EXCEPTIONAL_MAX_KEY = 'exceptionalMax'
+export const YELLOW_BEAST_KEY = 'yellowBeast'
 
 /** Results list order: grouped by value, or one row per cell as laid out. */
 export type ListOrder = 'value' | 'inventory'

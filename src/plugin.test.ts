@@ -5,6 +5,7 @@ import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
 import { EMPTY_LOG, type ScanMeta, craftEv, gemCounts, observeOnly, recordScan, toCsv, undoLastBatch } from './craftlog'
+import { exceptionalNames, rankExceptional } from './exceptional'
 import { buildOverlay, formatValue } from './overlay'
 import type { ScanOutcome } from './scan'
 import { inventoryOrder, summarize } from './summary'
@@ -60,8 +61,10 @@ describe('inventoryGrid', () => {
 })
 
 describe('matchCell', () => {
-  it('bundles fingerprints for every support gem', () => {
-    expect(GEM_REFS.length).toBeGreaterThan(250)
+  it('bundles fingerprints for every support gem a craft can make', () => {
+    // ~260 supports minus the ~50 that can't reach level 20
+    expect(GEM_REFS.length).toBeGreaterThan(200)
+    expect(GEM_REFS.some((r) => r.name === 'Communion Support')).toBe(false)
     expect(GEM_REFS.every((r) => r.fp.rgb.length === FP_SIZE * FP_SIZE * 3)).toBe(true)
   })
 
@@ -172,9 +175,9 @@ describe('buildOverlay', () => {
     ])
   })
 
-  it('can leave unpriced gems off entirely', () => {
+  it('fades unpriced gems like cheap ones when hiding them', () => {
     const kinds = buildOverlay(scan, book, 20, true).map((m) => m.kind)
-    expect(kinds).toEqual(['below', 'above', 'lookalike', 'unknown'])
+    expect(kinds).toEqual(['below', 'above', 'lookalike', 'below', 'unknown'])
   })
 
   it('labels in chaos only when asked', () => {
@@ -280,5 +283,40 @@ describe('craft log', () => {
     expect(ev.roi).toBe(1.25)
     expect(ev.ci95).toBeCloseTo(3 * 1.96 * Math.sqrt(225 / 3), 6)
     expect(ev.rows[0]).toMatchObject({ key: 'A Support', share: 30 / 45 })
+  })
+})
+
+describe('exceptional finder', () => {
+  const line = (name: string, gemLevel: number, chaosValue: number, listingCount: number, corrupted = false) => ({
+    name,
+    variant: `${gemLevel}${corrupted ? 'c' : ''}`,
+    gemLevel,
+    gemQuality: 0,
+    corrupted,
+    chaosValue,
+    listingCount,
+  })
+  const lines = [
+    line('Enhance Support', 1, 8, 417),
+    line('Enhance Support', 3, 100, 162),
+    line('Empower Support', 2, 20, 197, true),
+    line('Empower Support', 1, 45, 934),
+    line('Gluttony Support', 1, 1, 772),
+    line('Pyre Support', 1, 2, 604),
+    line('Awakened Added Fire Damage Support', 1, 5, 900),
+    line('Added Fire Damage Support', 20, 3, 2000),
+  ]
+
+  it('finds exceptional supports by their low level cap, not Awakened or regular ones', () => {
+    expect([...exceptionalNames(lines)].sort()).toEqual(['Empower Support', 'Enhance Support', 'Gluttony Support', 'Pyre Support'])
+  })
+
+  it('ranks cheapest uncorrupted lines under the cap by listings', () => {
+    expect(rankExceptional(lines, 10).map((p) => [p.name, p.chaos, p.listings])).toEqual([
+      ['Gluttony Support', 1, 772],
+      ['Pyre Support', 2, 604],
+      ['Enhance Support', 8, 417],
+    ])
+    expect(rankExceptional(lines, null).find((p) => p.name === 'Empower Support')?.chaos).toBe(45)
   })
 })

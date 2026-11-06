@@ -2,12 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
 import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, toCsv, undoLastBatch } from './craftlog'
+import { rankExceptional } from './exceptional'
 import { BEAST_NAME, ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
 import {
   BEAST_PRICE_KEY,
   CALIBRATION_KEY,
+  EXCEPTIONAL_KEY,
+  EXCEPTIONAL_MAX_KEY,
   LOGGING_KEY,
+  YELLOW_BEAST_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
   ORDER_KEY,
@@ -114,11 +118,14 @@ function GridPreview({ scan }: { scan: ScanOutcome }): JSX.Element {
   return <canvas ref={ref} style={{ width: '100%', imageRendering: 'auto', borderRadius: 4 }} />
 }
 
+/** Rare ("yellow") beasts each Vivid Watcher craft also consumes. */
+const YELLOW_BEASTS = 3
+
 /** Sample size below which the EV interval is too wide to lean on. */
 const SMALL_SAMPLE = 90
 
 function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { log, book, beastChaos, beastOverride, logging } = useStore()
+  const { log, book, beastChaos, beastOverride, logging, yellowBeast, exceptional } = useStore()
   const [confirmClear, setConfirmClear] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const copyCsv = async (): Promise<void> => {
@@ -130,7 +137,15 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
     }
   }
   const beastPrice = beastOverride ?? beastChaos
-  const ev = useMemo(() => (book ? craftEv(log, book, beastPrice) : null), [log, book, beastPrice])
+  // One craft: the Vivid Watcher, its yellow beasts and an exceptional gem.
+  // Unset ingredient prices count as free, and say so below.
+  const craftCost = beastPrice === null ? null : beastPrice + YELLOW_BEASTS * (yellowBeast ?? 0) + (exceptional?.chaos ?? 0)
+  const ev = useMemo(() => (book ? craftEv(log, book, craftCost) : null), [log, book, craftCost])
+  const setYellowBeast = (v: number | null): void => {
+    const value = v !== null && v > 0 ? v : null
+    setState({ yellowBeast: value })
+    void (value === null ? ctx.storage.delete(YELLOW_BEAST_KEY) : ctx.storage.set(YELLOW_BEAST_KEY, value))
+  }
   const lastBatch = log.batches[log.batches.length - 1]
   const save = (next: typeof log): void => {
     setState({ log: next, logStatus: null })
@@ -182,20 +197,37 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
           Refresh prices
         </Button>
       </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 6 }}>
+        <Label>Yellow beast price</Label>
+        <div style={{ width: 90 }}>
+          <ScrubInput value={yellowBeast} onChange={setYellowBeast} min={0} step={1} suffix="c" />
+        </div>
+        <span style={{ ...muted, fontSize: 12 }}>
+          each, x{YELLOW_BEASTS}. Exceptional gem:{' '}
+          {exceptional ? `${exceptional.name} at ${c(exceptional.chaos)}` : 'none chosen (pick one in the finder below)'}
+        </span>
+      </div>
+      {craftCost !== null && (
+        <div style={{ ...muted, fontSize: 12, marginTop: 4 }}>
+          Cost per craft {c(craftCost)} = {c(beastPrice ?? 0)} + {YELLOW_BEASTS} x {c(yellowBeast ?? 0)} +{' '}
+          {c(exceptional?.chaos ?? 0)}
+          {(yellowBeast === null || !exceptional) && ' (unset ingredients counted as free)'}
+        </div>
+      )}
 
       {ev && ev.gems > 0 && (
         <div style={{ marginTop: 10, lineHeight: 1.6 }}>
           <div>
-            EV per {BEAST_NAME}: <strong>{c(ev.evPerBeast)}</strong>
+            EV per craft: <strong>{c(ev.evPerBeast)}</strong>
             <span style={muted}> ± {c(ev.ci95)} (95%)</span>
           </div>
           {ev.profitPerBeast !== null && ev.roi !== null && (
             <div>
-              Profit per beast: <strong>{c(ev.profitPerBeast)}</strong>
+              Profit per craft: <strong>{c(ev.profitPerBeast)}</strong>
               <span style={muted}>
                 {' '}
                 ({ev.roi >= 0 ? '+' : ''}
-                {Math.round(ev.roi * 100)}% on {c(ev.beastChaos ?? 0)})
+                {Math.round(ev.roi * 100)}% on {c(ev.craftCost ?? 0)})
               </span>
             </div>
           )}
@@ -250,6 +282,116 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
         </Button>
         {copied && <span style={{ ...muted, fontSize: 12 }}>{copied}</span>}
       </div>
+    </details>
+  )
+}
+
+/** Ranks exceptional supports by supply under a price cap, to pick the one
+ *  most likely to be bought several at a time. Needs the fork's listing data. */
+function ExceptionalPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
+  const { listings, exceptionalMax, exceptional } = useStore()
+  const [loading, setLoading] = useState(false)
+  const supported = typeof ctx.prices.getGemListings === 'function'
+  const load = async (): Promise<void> => {
+    if (!ctx.prices.getGemListings || loading) return
+    setLoading(true)
+    try {
+      const result = await ctx.prices.getGemListings()
+      setState({ listings: result })
+      // Keep the chosen gem's cost current.
+      const chosen = exceptional && rankExceptional(result.lines, null).find((p) => p.name === exceptional.name)
+      if (chosen && chosen.chaos !== exceptional.chaos) choose(chosen.name, chosen.chaos)
+    } finally {
+      setLoading(false)
+    }
+  }
+  const choose = (name: string, chaos: number): void => {
+    setState({ exceptional: { name, chaos } })
+    void ctx.storage.set(EXCEPTIONAL_KEY, { name, chaos })
+  }
+  const setMax = (v: number | null): void => {
+    const value = v !== null && v > 0 ? v : 10
+    setState({ exceptionalMax: value })
+    void ctx.storage.set(EXCEPTIONAL_MAX_KEY, value)
+  }
+  const picks = useMemo(() => (listings ? rankExceptional(listings.lines, exceptionalMax) : []), [listings, exceptionalMax])
+  return (
+    <details
+      style={{ marginTop: 16 }}
+      onToggle={(e) => {
+        if ((e.currentTarget as HTMLDetailsElement).open && !listings) void load()
+      }}
+    >
+      <summary style={{ cursor: 'pointer' }}>Exceptional gem finder</summary>
+      {!supported ? (
+        <p style={{ ...muted, fontSize: 12 }}>Needs the patched Scalpel build (1.0.5-gems.12 or later) for listing counts.</p>
+      ) : (
+        <>
+          <p style={{ ...muted, fontSize: 12 }}>
+            Cheapest uncorrupted listing of each exceptional support at or under the cap, most listed first: more
+            listings means better odds of a seller with several. Choose one to count its price in each craft&apos;s cost.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <Label>Max price</Label>
+            <div style={{ width: 90 }}>
+              <ScrubInput value={exceptionalMax} onChange={setMax} min={1} step={1} suffix="c" />
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => void load()} disabled={loading}>
+              {loading ? 'Loading...' : 'Reload listings'}
+            </Button>
+            {listings?.updatedAt && (
+              <span style={{ ...muted, fontSize: 12 }}>
+                poe.ninja, {listings.league}, {new Date(listings.updatedAt).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+          {listings?.error && (
+            <div style={{ marginTop: 8 }}>
+              <ErrorBanner message={listings.error} tone="warn" />
+            </div>
+          )}
+          {listings && (
+            <table style={{ width: '100%', marginTop: 8, borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ ...muted, textAlign: 'left', fontSize: 11 }}>
+                  <th style={cellPad}>Gem</th>
+                  <th style={{ ...cellPad, textAlign: 'right' }}>Price</th>
+                  <th style={{ ...cellPad, textAlign: 'right' }}>Listings</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {picks.slice(0, 15).map((p) => (
+                  <tr key={p.name} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <td style={cellPad}>
+                      {p.name}
+                      {p.variant && p.variant !== '1' && <span style={muted}> ({p.variant})</span>}
+                    </td>
+                    <td style={{ ...cellPad, textAlign: 'right' }}>{formatPrice(p.chaos)}c</td>
+                    <td style={{ ...cellPad, textAlign: 'right' }}>{p.listings}</td>
+                    <td style={{ ...cellPad, textAlign: 'right' }}>
+                      <Button
+                        size="sm"
+                        variant={exceptional?.name === p.name ? 'primary' : 'ghost'}
+                        onClick={() => choose(p.name, p.chaos)}
+                      >
+                        {exceptional?.name === p.name ? 'Chosen' : 'Choose'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {!picks.length && (
+                  <tr>
+                    <td colSpan={4} style={{ ...cellPad, ...muted }}>
+                      No exceptional supports at or under {exceptionalMax}c.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
     </details>
   )
 }
@@ -452,6 +594,7 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
       )}
 
       <CraftLogPanel ctx={ctx} />
+      <ExceptionalPanel ctx={ctx} />
       <CalibrationPanel ctx={ctx} />
     </div>
   )

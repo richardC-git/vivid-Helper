@@ -183,15 +183,17 @@ export interface CraftEv {
   evPerBeast: number
   /** Half-width of the 95% confidence interval on evPerBeast */
   ci95: number
-  beastChaos: number | null
+  /** Chaos spent per craft (beast + ingredients), when known */
+  craftCost: number | null
   profitPerBeast: number | null
   roi: number | null
   rows: EvRow[]
 }
 
-/** Sample estimate of a beast's value: GEMS_PER_BEAST x the mean recorded gem
- *  value, with unpriced gems counted as worth nothing. */
-export function craftEv(log: CraftLog, book: PriceBook, beastChaos: number | null): CraftEv {
+/** Sample estimate of a craft's value: GEMS_PER_BEAST x the mean recorded gem
+ *  value, with unpriced gems counted as worth nothing, against what one craft
+ *  costs. */
+export function craftEv(log: CraftLog, book: PriceBook, craftCost: number | null): CraftEv {
   const counts = gemCounts(log)
   let n = 0
   let sum = 0
@@ -212,16 +214,16 @@ export function craftEv(log: CraftLog, book: PriceBook, beastChaos: number | nul
   for (const r of rows) r.share = sum ? ((r.unit ?? 0) * r.count) / sum : 0
   rows.sort((a, b) => b.share - a.share || b.count - a.count)
   const evPerBeast = GEMS_PER_BEAST * mean
-  const profit = beastChaos === null ? null : evPerBeast - beastChaos
+  const profit = craftCost === null ? null : evPerBeast - craftCost
   return {
     gems: n,
     unpriced,
     meanGem: mean,
     evPerBeast,
     ci95: n > 1 ? GEMS_PER_BEAST * 1.96 * Math.sqrt(variance / n) : 0,
-    beastChaos,
+    craftCost,
     profitPerBeast: profit,
-    roi: profit === null || !beastChaos ? null : profit / beastChaos,
+    roi: profit === null || !craftCost ? null : profit / craftCost,
     rows,
   }
 }

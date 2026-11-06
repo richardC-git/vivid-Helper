@@ -35,8 +35,8 @@ For testing, switch **Logging off** in the Craft log section. Scans then still t
 
 The **Craft log** section in the tab shows, at current poe.ninja prices:
 
-- **EV per Vivid Watcher**: 3 x the mean logged gem value, with a 95% confidence interval. Gems with no 20/20 price count as 0; look-alikes count as the mean of their candidates.
-- **Profit per beast** against the Vivid Watcher's poe.ninja price, or a price you enter. **Refresh prices** asks Scalpel to re-fetch poe.ninja now.
+- **EV per craft**: 3 x the mean logged gem value, with a 95% confidence interval. Gems with no 20/20 price count as 0; look-alikes count as the mean of their candidates.
+- **Profit per craft** against what a craft costs: the Vivid Watcher (poe.ninja's price, or one you enter), plus 3 yellow beasts at a price you enter, plus the exceptional gem chosen in the finder. Unset ingredients count as free and the cost line says so. **Refresh prices** asks Scalpel to re-fetch poe.ninja now.
 - The gems contributing most of the value.
 
 The log lives in Scalpel's plugin storage (`%APPDATA%\scalpel\plugins\gem-scanner\storage.json`, key `craftLog`): one entry per logged scan with its time, league, plugin version and icon-reference version, and for each gem its slot, name (look-alikes as all candidates), match distance and poe.ninja value at the time. **Copy CSV** puts it on the clipboard as one row per gem:
@@ -47,7 +47,11 @@ logged_at,league,slot,gem,candidates,match_distance,chaos_at_log,plugin,refs
 
 Gems logged before 0.4.1 lack the league, distance, price and version columns.
 
-Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.
+Rows marked **look-alike art** are gems whose icons are too alike to tell apart reliably. Both candidates and their prices are shown, so hover the gem in game to see which it is. Gems that can't reach level 20 (exceptional and Awakened supports, e.g. *Communion*, which shares *Minion Pact*'s art) are left out of recognition entirely, since a craft can't produce them, so most look-alikes never come up.
+
+### Exceptional gem finder
+
+Each craft also eats one exceptional support gem. Many sell for 1-10c, but on thin supply, so finding one seller with several is the hard part. The **Exceptional gem finder** section in the tab lists every exceptional support's cheapest uncorrupted poe.ninja line at or under **Max price** (10c by default), most listings first. **Choose** one to count its price in each craft's cost; its price refreshes whenever the finder reloads. The finder needs listing counts, which only the patched Scalpel (1.0.5-gems.12+) provides; poe.ninja's gem list is fetched when the section opens and cached for 30 minutes.
 
 ### Calibration
 
@@ -76,4 +80,4 @@ Load `dist/` with Scalpel's Settings > Developer > *Load unpacked plugin...*, or
 
 The plugin can't read GGG's icon images at runtime (the CDN sends no CORS headers), so `npm run build:refs` downloads every support-gem icon listed in Scalpel's `item-data` index (pinned to a commit) and bundles a 16x16 fingerprint of each. At scan time each inventory cell is downsampled the same way (`src/fingerprint.ts`) and compared against all fingerprints, with the reference composited over the cell's own background. A small whole-grid offset search absorbs calibration error first.
 
-On synthetic renders at 720p-4K cell sizes, with up to 3px misalignment and ±20% brightness, `npm run sim` reports 99.6% correct, 0.4% look-alike (the identical-art pair), 0% wrong, and about 130ms per scan. Real captures still need confirming; tune `EMPTY_STDDEV` / `MATCH_MAX_DISTANCE` in `src/match.ts` if needed.
+On synthetic renders at 720p-4K cell sizes, with up to 3px misalignment and ±20% brightness, `npm run sim` reports 100% correct, 0% wrong, 0.5% of correct matches shown with a look-alike alongside, and about 140ms per scan. Real captures still need confirming; tune `EMPTY_STDDEV` / `MATCH_MAX_DISTANCE` in `src/match.ts` if needed.

@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
 import { type CraftLog, EMPTY_LOG, type RecordOutcome } from './craftlog'
+import type { GemListingsResult } from '@scalpelpoe/plugin-sdk'
 import type { PriceBook } from './pricing'
 import type { ListOrder, ScanOutcome } from './scan'
 
@@ -28,6 +29,14 @@ export interface State {
   beastOverride: number | null
   /** Off for testing: scans update the slot memory but add nothing to the log */
   logging: boolean
+  /** poe.ninja gem lines with listing counts, loaded when the finder opens */
+  listings: GemListingsResult | null
+  /** Finder's price cap per exceptional gem, chaos */
+  exceptionalMax: number
+  /** Exceptional gem fed to each craft and what it cost when chosen */
+  exceptional: { name: string; chaos: number } | null
+  /** User's cost per yellow beast (poe.ninja doesn't price them) */
+  yellowBeast: number | null
 }
 
 let state: State = {
@@ -45,6 +54,10 @@ let state: State = {
   beastChaos: null,
   beastOverride: null,
   logging: true,
+  listings: null,
+  exceptionalMax: 10,
+  exceptional: null,
+  yellowBeast: null,
 }
 const listeners = new Set<() => void>()
 

@@ -73,9 +73,11 @@ function ControlBar({ ctx, payload }: { ctx: ScalpelPluginContext; payload: Over
       ref={ref}
       style={{
         position: 'absolute',
-        left: grid.x + grid.width,
+        // Anchored by its right edge so it sizes to its text; a left anchor
+        // near the window edge shrank it and wrapped the status line.
+        right: `calc(100% - ${grid.x + grid.width}px)`,
         top: Math.max(0, grid.y - BAR_HEIGHT - 4),
-        transform: 'translateX(-100%)',
+        whiteSpace: 'nowrap',
         height: BAR_HEIGHT,
         display: 'flex',
         alignItems: 'center',
