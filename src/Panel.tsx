@@ -3,7 +3,16 @@ import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPlugin
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
 import { ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
-import { CALIBRATION_KEY, ORDER_KEY, THRESHOLD_KEY, type ListOrder, type ScanOutcome, runScan, scanCapture } from './scan'
+import {
+  CALIBRATION_KEY,
+  HIDE_UNPRICED_KEY,
+  ORDER_KEY,
+  THRESHOLD_KEY,
+  type ListOrder,
+  type ScanOutcome,
+  runScan,
+  scanCapture,
+} from './scan'
 import { setState, useStore } from './store'
 import { type SummaryRow, inventoryOrder, summarize } from './summary'
 
@@ -149,7 +158,7 @@ function CalibrationPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 }
 
 export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { scan, scanning, error, order, book, threshold } = useStore()
+  const { scan, scanning, error, order, book, threshold, hideUnpriced } = useStore()
   useEffect(() => {
     void ensurePriceBook(ctx)
   }, [ctx])
@@ -162,11 +171,18 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   // Judged by the highest possible value, so look-alikes and ranges stay if
   // either reading clears it; unpriced and unreadable rows always stay.
   const isBelow = (r: SummaryRow): boolean => threshold !== null && r.unitMax !== null && r.unitMax < threshold
-  const rows = allRows.filter((r) => !isBelow(r))
+  // Matched gems with no price line; unreadable rows (no candidates) stay.
+  const isUnpriced = (r: SummaryRow): boolean => r.candidates.length > 0 && r.unitMax === null
+  const rows = allRows.filter((r) => !isBelow(r) && !(hideUnpriced && isUnpriced(r)))
+  const unpricedHidden = hideUnpriced ? allRows.filter(isUnpriced).reduce((n, r) => n + r.count, 0) : 0
   const hidden = allRows.filter(isBelow)
   const hiddenCount = hidden.reduce((n, r) => n + r.count, 0)
   const hiddenMin = hidden.reduce((n, r) => n + (r.unitMin ?? 0) * r.count, 0)
   const hiddenMax = hidden.reduce((n, r) => n + (r.unitMax ?? 0) * r.count, 0)
+  const toggleUnpriced = (): void => {
+    setState({ hideUnpriced: !hideUnpriced })
+    void ctx.storage.set(HIDE_UNPRICED_KEY, !hideUnpriced)
+  }
   const setThreshold = (next: number | null): void => {
     const value = next !== null && next > 0 ? next : null
     setState({ threshold: value })
@@ -220,6 +236,9 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
             {threshold !== null && book?.divineChaos && (
               <span style={{ ...muted, fontSize: 12 }}>({(threshold / book.divineChaos).toFixed(2)} div)</span>
             )}
+            <Button size="sm" variant={hideUnpriced ? 'primary' : 'ghost'} onClick={toggleUnpriced}>
+              Hide no-price
+            </Button>
           </div>
           <div style={{ marginTop: 12 }}>
             <strong>{summary.gems}</strong> gems
@@ -258,6 +277,17 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
                   <td style={{ ...cellPad, textAlign: 'right' }}>{order === 'value' ? hiddenCount : ''}</td>
                   <td />
                   <td style={{ ...cellPad, textAlign: 'right' }}>{priceRange(hiddenMin, hiddenMax)}</td>
+                </tr>
+              )}
+              {unpricedHidden > 0 && (
+                <tr style={{ borderTop: '1px solid rgba(255,255,255,0.06)', ...muted }}>
+                  <td />
+                  <td style={cellPad}>
+                    {unpricedHidden} {unpricedHidden === 1 ? 'gem' : 'gems'} with no price hidden
+                  </td>
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{order === 'value' ? unpricedHidden : ''}</td>
+                  <td />
+                  <td />
                 </tr>
               )}
             </tbody>

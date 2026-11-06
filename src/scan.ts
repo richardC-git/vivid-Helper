@@ -33,6 +33,7 @@ export async function captureAndScan(ctx: ScalpelPluginContext, cal: Calibration
 export const CALIBRATION_KEY = 'calibration'
 export const ORDER_KEY = 'order'
 export const THRESHOLD_KEY = 'threshold'
+export const HIDE_UNPRICED_KEY = 'hideUnpriced'
 
 /** Results list order: grouped by value, or one row per cell as laid out. */
 export type ListOrder = 'value' | 'inventory'
@@ -55,8 +56,8 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
 /** Hand the current scan's marks to the overlay window. Only Scalpel's main
  *  overlay process ever has a scan, so the overlay's own copy never writes. */
 export async function publishOverlay(ctx: ScalpelPluginContext): Promise<void> {
-  const { scan, book, threshold } = getState()
+  const { scan, book, threshold, hideUnpriced } = getState()
   if (!scan || !book) return
-  const payload: OverlayPayload = { stamp: Date.now(), marks: buildOverlay(scan, book, threshold) }
+  const payload: OverlayPayload = { stamp: Date.now(), marks: buildOverlay(scan, book, threshold, hideUnpriced) }
   await ctx.storage.set(OVERLAY_KEY, payload)
 }

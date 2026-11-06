@@ -171,6 +171,11 @@ describe('buildOverlay', () => {
     ])
   })
 
+  it('can leave unpriced gems off entirely', () => {
+    const kinds = buildOverlay(scan, book, 20, true).map((m) => m.kind)
+    expect(kinds).toEqual(['below', 'above', 'lookalike', 'unknown'])
+  })
+
   it('formats chaos, thousands and divines compactly', () => {
     expect(formatValue(0.46, 200)).toBe('0.5c')
     expect(formatValue(93.4, 200)).toBe('93c')

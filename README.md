@@ -24,7 +24,7 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
 
    The overlay is click-through, so you can hover and move gems underneath it. Esc (or the toggle hotkey) hides it. It shows the last scan, so rescan after moving or selling gems. If a scan fails, the tab opens instead to show why.
 3. The plugin's tab in Scalpel lists each gem type with its count, unit price and total, plus a grand total in chaos and divines.
-4. Set **Min price** in the tab to hide cheap gems: they collapse into one "N gems under X" row that still counts towards the total, and fade on the overlay. Look-alikes and price ranges are judged by their highest possible value. Clear it to show everything.
+4. Set **Min price** in the tab to hide cheap gems: they collapse into one "N gems under X" row that still counts towards the total, and fade on the overlay. Look-alikes and price ranges are judged by their highest possible value. Clear it to show everything. **Hide no-price** leaves gems without a 20/20 price off the overlay and the list too.
 5. Switch the list to **Inventory order** to get one row per gem in the order PoE fills the inventory (down each column, then across), with its slot as column-row, so you can work through the inventory alongside it. Both choices are remembered.
 
 Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.

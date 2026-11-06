@@ -39,7 +39,12 @@ function round(v: number): string {
 
 /** One mark per non-empty cell. Look-alikes and price ranges are judged and
  *  labelled by their highest possible value, so nothing valuable gets faded. */
-export function buildOverlay(scan: ScanOutcome, book: PriceBook, threshold: number | null): OverlayMark[] {
+export function buildOverlay(
+  scan: ScanOutcome,
+  book: PriceBook,
+  threshold: number | null,
+  hideUnpriced = false,
+): OverlayMark[] {
   const { capture, grid, offset } = scan
   const size = grid.cell / capture.scale
   const x0 = capture.origin.x + (grid.x + offset.dx) / capture.scale
@@ -54,7 +59,7 @@ export function buildOverlay(scan: ScanOutcome, book: PriceBook, threshold: numb
     }
     const value = priceRow('', cell.candidates, book).unitMax
     if (value === null) {
-      marks.push({ ...rect, kind: 'unpriced', label: 'no price' })
+      if (!hideUnpriced) marks.push({ ...rect, kind: 'unpriced', label: 'no price' })
       continue
     }
     const ambiguous = cell.candidates.length > 1

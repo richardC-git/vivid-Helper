@@ -14,6 +14,8 @@ export interface State {
   book: PriceBook | null
   /** Minimum chaos value to list and highlight; null shows everything */
   threshold: number | null
+  /** Leave gems without a 20/20 price off the overlay and list */
+  hideUnpriced: boolean
 }
 
 let state: State = {
@@ -24,6 +26,7 @@ let state: State = {
   order: 'value',
   book: null,
   threshold: null,
+  hideUnpriced: false,
 }
 const listeners = new Set<() => void>()
 
