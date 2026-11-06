@@ -15,10 +15,17 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
 
 ## Using it
 
-1. Bind **Scan inventory gems** in Scalpel's Settings > Macros > Plugin Hotkeys.
-2. In game, open your inventory and press the hotkey. The plugin captures the game window, reads the 12x5 grid and switches to its tab.
-3. The tab lists each gem type with its count, unit price, and total, plus a grand total in chaos and divines.
-4. Switch the list to **Inventory order** to get one row per gem in the order PoE fills the inventory (down each column, then across), with its slot as column-row, so you can work through the inventory alongside it. The choice is remembered.
+1. Bind **Scan inventory gems** in Scalpel's Settings > Macros > Plugin Hotkeys. Optionally bind **Toggle gem overlay** too.
+2. In game, open your inventory and press the scan hotkey. The plugin captures the game window, reads the 12x5 grid and draws prices straight over your inventory, so the game keeps focus:
+   - **green** outline: at or above your minimum price, labelled with its value (`93c`, `1.2d`)
+   - **dark tint**: below the minimum, with a dim price, safe to skip
+   - **amber** with `?`: look-alike art, labelled with the higher candidate's price
+   - **dashed**: no 20/20 price on poe.ninja; **red**: unreadable cell
+
+   The overlay is click-through, so you can hover and move gems underneath it. Esc (or the toggle hotkey) hides it. It shows the last scan, so rescan after moving or selling gems. If a scan fails, the tab opens instead to show why.
+3. The plugin's tab in Scalpel lists each gem type with its count, unit price and total, plus a grand total in chaos and divines.
+4. Set **Min price** in the tab to hide cheap gems: they collapse into one "N gems under X" row that still counts towards the total, and fade on the overlay. Look-alikes and price ranges are judged by their highest possible value. Clear it to show everything.
+5. Switch the list to **Inventory order** to get one row per gem in the order PoE fills the inventory (down each column, then across), with its slot as column-row, so you can work through the inventory alongside it. Both choices are remembered.
 
 Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.
 

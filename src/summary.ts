@@ -29,7 +29,7 @@ function bounds(p: GemPrice): [number, number] | null {
   return null
 }
 
-function priceRow(key: string, cellCandidates: Candidate[], book: PriceBook): SummaryRow {
+export function priceRow(key: string, cellCandidates: Candidate[], book: PriceBook): SummaryRow {
   const candidates = [...cellCandidates]
   const prices = candidates.map((c) => book.lookup(c.name))
   const known = prices.map(bounds).filter((b): b is [number, number] => b !== null)

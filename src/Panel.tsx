@@ -1,31 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
-import { type PriceBook, GEM_CATEGORY, TARGET_VARIANT, buildPriceBook } from './pricing'
-import { CALIBRATION_KEY, ORDER_KEY, type ListOrder, type ScanOutcome, runScan, scanCapture } from './scan'
+import { ensurePriceBook } from './prices'
+import { TARGET_VARIANT } from './pricing'
+import { CALIBRATION_KEY, ORDER_KEY, THRESHOLD_KEY, type ListOrder, type ScanOutcome, runScan, scanCapture } from './scan'
 import { setState, useStore } from './store'
 import { type SummaryRow, inventoryOrder, summarize } from './summary'
 
-function usePriceBook(ctx: ScalpelPluginContext): PriceBook | null {
-  const [book, setBook] = useState<PriceBook | null>(null)
-  useEffect(() => {
-    let alive = true
-    const load = async (): Promise<void> => {
-      const [gems, currency] = await Promise.all([
-        ctx.prices.getPrices({ category: GEM_CATEGORY }),
-        ctx.prices.getPrices({ category: 'currency' }),
-      ])
-      if (alive) setBook(buildPriceBook(gems.prices, currency.prices, gems.updatedAt))
-    }
-    void load()
-    const off = ctx.prices.onChange(() => void load())
-    return () => {
-      alive = false
-      off()
-    }
-  }, [ctx])
-  return book
-}
 
 function priceRange(min: number | null, max: number | null, unit = 'c'): string {
   if (min === null || max === null) return '-'
@@ -168,13 +149,29 @@ function CalibrationPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 }
 
 export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { scan, scanning, error, order } = useStore()
-  const book = usePriceBook(ctx)
+  const { scan, scanning, error, order, book, threshold } = useStore()
+  useEffect(() => {
+    void ensurePriceBook(ctx)
+  }, [ctx])
   const summary = useMemo(() => (scan && book ? summarize(scan.cells, book) : null), [scan, book])
-  const rows = useMemo(
+  const allRows = useMemo(
     () => (scan && book && summary ? (order === 'inventory' ? inventoryOrder(scan.cells, book) : summary.rows) : []),
     [scan, book, summary, order],
   )
+  // Rows priced entirely under the threshold collapse into one summary line.
+  // Judged by the highest possible value, so look-alikes and ranges stay if
+  // either reading clears it; unpriced and unreadable rows always stay.
+  const isBelow = (r: SummaryRow): boolean => threshold !== null && r.unitMax !== null && r.unitMax < threshold
+  const rows = allRows.filter((r) => !isBelow(r))
+  const hidden = allRows.filter(isBelow)
+  const hiddenCount = hidden.reduce((n, r) => n + r.count, 0)
+  const hiddenMin = hidden.reduce((n, r) => n + (r.unitMin ?? 0) * r.count, 0)
+  const hiddenMax = hidden.reduce((n, r) => n + (r.unitMax ?? 0) * r.count, 0)
+  const setThreshold = (next: number | null): void => {
+    const value = next !== null && next > 0 ? next : null
+    setState({ threshold: value })
+    void (value === null ? ctx.storage.delete(THRESHOLD_KEY) : ctx.storage.set(THRESHOLD_KEY, value))
+  }
   const setOrder = (next: ListOrder): void => {
     setState({ order: next })
     void ctx.storage.set(ORDER_KEY, next)
@@ -187,7 +184,7 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
           {scanning ? 'Scanning...' : 'Scan inventory'}
         </Button>
         <span style={{ ...muted, fontSize: 12 }}>
-          Tip: bind "Scan inventory gems" in Settings &gt; Macros and press it in game with your inventory open.
+          Tip: bind "Scan inventory gems" in Settings &gt; Macros and press it in game with your inventory open. Prices appear over your inventory; Esc hides them.
         </span>
       </div>
 
@@ -208,7 +205,7 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 
       {summary && (
         <>
-          <div style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             <span style={{ ...muted, fontSize: 12 }}>List:</span>
             <Button size="sm" variant={order === 'value' ? 'primary' : 'ghost'} onClick={() => setOrder('value')}>
               By value
@@ -216,6 +213,13 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
             <Button size="sm" variant={order === 'inventory' ? 'primary' : 'ghost'} onClick={() => setOrder('inventory')}>
               Inventory order
             </Button>
+            <span style={{ ...muted, fontSize: 12, marginLeft: 12 }}>Min price:</span>
+            <div style={{ width: 90 }}>
+              <ScrubInput value={threshold} onChange={setThreshold} min={0} step={5} suffix="c" />
+            </div>
+            {threshold !== null && book?.divineChaos && (
+              <span style={{ ...muted, fontSize: 12 }}>({(threshold / book.divineChaos).toFixed(2)} div)</span>
+            )}
           </div>
           <div style={{ marginTop: 12 }}>
             <strong>{summary.gems}</strong> gems
@@ -245,6 +249,17 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
               {rows.map((r) => (
                 <Row key={r.key} row={r} />
               ))}
+              {hiddenCount > 0 && (
+                <tr style={{ borderTop: '1px solid rgba(255,255,255,0.06)', ...muted }}>
+                  <td />
+                  <td style={cellPad}>
+                    {hiddenCount} {hiddenCount === 1 ? 'gem' : 'gems'} under {threshold}c
+                  </td>
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{order === 'value' ? hiddenCount : ''}</td>
+                  <td />
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{priceRange(hiddenMin, hiddenMax)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
           {book?.updatedAt && (

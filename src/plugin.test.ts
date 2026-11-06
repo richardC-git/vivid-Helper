@@ -4,6 +4,8 @@ import { FP_SIZE, type Fingerprint } from './fingerprint'
 import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
+import { buildOverlay, formatValue } from './overlay'
+import type { ScanOutcome } from './scan'
 import { inventoryOrder, summarize } from './summary'
 
 const gem = (name: string, chaosValue: number, variant?: string): PriceEntry =>
@@ -122,5 +124,57 @@ describe('inventoryOrder', () => {
     ])
     expect(rows[0]).toMatchObject({ count: 1, unitMin: 3 })
     expect(rows[1].candidates).toEqual([])
+  })
+})
+
+describe('buildOverlay', () => {
+  const book = buildPriceBook(
+    [gem('Cheap Support', 5, '20/20'), gem('Rich Support', 900, '20/20'), gem('Twin Support', 50, '20/20')],
+    [divine],
+    null,
+  )
+  const matched = (col: number, row: number, ...names: string[]) => ({
+    col,
+    row,
+    status: 'matched' as const,
+    candidates: names.map((name) => ({ name, icon: '', distance: 1 })),
+  })
+  const scan = {
+    capture: { origin: { x: 0, y: 0 }, scale: 2 },
+    grid: { x: 200, y: 100, cell: 100 },
+    offset: { dx: 10, dy: 0 },
+    cells: [
+      matched(0, 0, 'Cheap Support'),
+      matched(1, 0, 'Rich Support'),
+      matched(0, 1, 'Twin Support', 'Cheap Support'),
+      matched(2, 0, 'Unlisted Support'),
+      { col: 3, row: 0, status: 'unknown' as const, candidates: [] },
+      { col: 4, row: 0, status: 'empty' as const, candidates: [] },
+    ],
+  } as unknown as ScanOutcome
+
+  it('places marks in game CSS px, including the auto-align offset', () => {
+    const marks = buildOverlay(scan, book, null)
+    expect(marks).toHaveLength(5)
+    expect(marks[0]).toMatchObject({ x: 105, y: 50, size: 50 })
+    expect(marks[1]).toMatchObject({ x: 155, y: 50 })
+  })
+
+  it('fades gems under the threshold, judging look-alikes by their best reading', () => {
+    const kinds = buildOverlay(scan, book, 20).map((m) => [m.kind, m.label])
+    expect(kinds).toEqual([
+      ['below', '5c'],
+      ['above', '4.5d'],
+      ['lookalike', '50c?'],
+      ['unpriced', 'no price'],
+      ['unknown', '?'],
+    ])
+  })
+
+  it('formats chaos, thousands and divines compactly', () => {
+    expect(formatValue(0.46, 200)).toBe('0.5c')
+    expect(formatValue(93.4, 200)).toBe('93c')
+    expect(formatValue(1500, null)).toBe('1.5k')
+    expect(formatValue(300, 200)).toBe('1.5d')
   })
 })
