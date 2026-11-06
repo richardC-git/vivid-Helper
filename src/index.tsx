@@ -8,6 +8,7 @@ import { Panel } from './Panel'
 import { ensurePriceBook } from './prices'
 import {
   CALIBRATION_KEY,
+  CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
   type ListOrder,
   ORDER_KEY,
@@ -33,6 +34,7 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   const threshold = await ctx.storage.get<number>(THRESHOLD_KEY)
   if (typeof threshold === 'number') setState({ threshold })
   if ((await ctx.storage.get<boolean>(HIDE_UNPRICED_KEY)) === true) setState({ hideUnpriced: true })
+  if ((await ctx.storage.get<boolean>(CHAOS_ONLY_KEY)) === true) setState({ chaosOnly: true })
 
   // Keep the overlay in step with rescans (incl. calibration tweaks), price
   // refreshes and threshold changes.
@@ -43,7 +45,8 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
       next.scan !== last.scan ||
       next.book !== last.book ||
       next.threshold !== last.threshold ||
-      next.hideUnpriced !== last.hideUnpriced
+      next.hideUnpriced !== last.hideUnpriced ||
+      next.chaosOnly !== last.chaosOnly
     )
       void publishOverlay(ctx)
     last = next

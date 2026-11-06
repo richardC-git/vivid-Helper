@@ -26,10 +26,11 @@ export interface OverlayPayload {
   marks: OverlayMark[]
 }
 
-/** Compact price label: "0.5c", "93c", "1.2k" chaos, or divines from one up. */
+/** Compact price label: "0.5c", "93c", "1.2kc", or divines from one up when
+ *  `divineChaos` is given. */
 export function formatValue(chaos: number, divineChaos: number | null): string {
   if (divineChaos && chaos >= divineChaos) return `${round(chaos / divineChaos)}d`
-  if (chaos >= 1000) return `${round(chaos / 1000)}k`
+  if (chaos >= 1000) return `${round(chaos / 1000)}kc`
   return `${round(chaos)}c`
 }
 
@@ -44,6 +45,7 @@ export function buildOverlay(
   book: PriceBook,
   threshold: number | null,
   hideUnpriced = false,
+  chaosOnly = false,
 ): OverlayMark[] {
   const { capture, grid, offset } = scan
   const size = grid.cell / capture.scale
@@ -63,7 +65,7 @@ export function buildOverlay(
       continue
     }
     const ambiguous = cell.candidates.length > 1
-    const label = formatValue(value, book.divineChaos) + (ambiguous ? '?' : '')
+    const label = formatValue(value, chaosOnly ? null : book.divineChaos) + (ambiguous ? '?' : '')
     const kind: MarkKind = threshold !== null && value < threshold ? 'below' : ambiguous ? 'lookalike' : 'above'
     marks.push({ ...rect, kind, label })
   }

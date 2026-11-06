@@ -176,10 +176,14 @@ describe('buildOverlay', () => {
     expect(kinds).toEqual(['below', 'above', 'lookalike', 'unknown'])
   })
 
+  it('labels in chaos only when asked', () => {
+    expect(buildOverlay(scan, book, null, false, true)[1].label).toBe('900c')
+  })
+
   it('formats chaos, thousands and divines compactly', () => {
     expect(formatValue(0.46, 200)).toBe('0.5c')
     expect(formatValue(93.4, 200)).toBe('93c')
-    expect(formatValue(1500, null)).toBe('1.5k')
+    expect(formatValue(1500, null)).toBe('1.5kc')
     expect(formatValue(300, 200)).toBe('1.5d')
   })
 })

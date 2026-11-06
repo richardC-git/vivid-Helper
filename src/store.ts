@@ -16,6 +16,8 @@ export interface State {
   threshold: number | null
   /** Leave gems without a 20/20 price off the overlay and list */
   hideUnpriced: boolean
+  /** Label the overlay in chaos even for gems worth a divine or more */
+  chaosOnly: boolean
 }
 
 let state: State = {
@@ -27,6 +29,7 @@ let state: State = {
   book: null,
   threshold: null,
   hideUnpriced: false,
+  chaosOnly: false,
 }
 const listeners = new Set<() => void>()
 

@@ -5,6 +5,7 @@ import { ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
 import {
   CALIBRATION_KEY,
+  CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
   ORDER_KEY,
   THRESHOLD_KEY,
@@ -158,7 +159,7 @@ function CalibrationPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
 }
 
 export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { scan, scanning, error, order, book, threshold, hideUnpriced } = useStore()
+  const { scan, scanning, error, order, book, threshold, hideUnpriced, chaosOnly } = useStore()
   useEffect(() => {
     void ensurePriceBook(ctx)
   }, [ctx])
@@ -179,6 +180,10 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   const hiddenCount = hidden.reduce((n, r) => n + r.count, 0)
   const hiddenMin = hidden.reduce((n, r) => n + (r.unitMin ?? 0) * r.count, 0)
   const hiddenMax = hidden.reduce((n, r) => n + (r.unitMax ?? 0) * r.count, 0)
+  const toggleChaosOnly = (): void => {
+    setState({ chaosOnly: !chaosOnly })
+    void ctx.storage.set(CHAOS_ONLY_KEY, !chaosOnly)
+  }
   const toggleUnpriced = (): void => {
     setState({ hideUnpriced: !hideUnpriced })
     void ctx.storage.set(HIDE_UNPRICED_KEY, !hideUnpriced)
@@ -238,6 +243,9 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
             )}
             <Button size="sm" variant={hideUnpriced ? 'primary' : 'ghost'} onClick={toggleUnpriced}>
               Hide no-price
+            </Button>
+            <Button size="sm" variant={chaosOnly ? 'primary' : 'ghost'} onClick={toggleChaosOnly}>
+              Chaos only
             </Button>
           </div>
           <div style={{ marginTop: 12 }}>
