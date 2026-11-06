@@ -22,7 +22,7 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   })
 
   ctx.registerTab({
-    label: 'Gem Scanner',
+    label: 'Vivid Watcher Helper',
     icon: renderToStaticMarkup(<Diamonds theme="two-tone" fill={['currentColor', 'rgba(255,255,255,0.2)']} />),
     render: (container) => {
       root = createRoot(container)

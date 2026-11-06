@@ -1,13 +1,13 @@
-# Gem Scanner (Scalpel plugin)
+# Vivid Watcher Helper (Scalpel plugin)
 
-Scans your Path of Exile 1 inventory for **level 20 / quality 20 support gems**, identifies each one from its icon art, and prices the whole inventory at once from the poe.ninja data Scalpel already keeps. No trade API calls.
+Prices the **level 20 / quality 20 support gems** that Vivid Watcher crafts produce. It scans your Path of Exile 1 inventory, identifies each gem from its icon art, and prices the whole inventory at once from the poe.ninja data Scalpel already keeps. No trade API calls.
 
 ## Installing
 
 The easiest way is the patched Scalpel build from the fork (`../scalpel-gems`, branch `gem-scanner`). It comes with this plugin preinstalled and exposes the price variant needed for exact 20/20 prices:
 
 1. Download `Scalpel-Setup.exe` from the fork's GitHub Releases and run it. It installs over an existing Scalpel and keeps your settings. The build is unsigned, so Windows SmartScreen will ask: click *More info* > *Run anyway*.
-2. Launch Scalpel. The **Gem Scanner** tab is already there.
+2. Launch Scalpel. The **Vivid Watcher Helper** tab is already there.
 
 The fork's auto-updater follows the fork's own releases, so upstream Scalpel releases won't replace it. To get back to official Scalpel, reinstall it from upstream.
 
@@ -30,6 +30,7 @@ The inventory position is computed from the game window size, using the 1080p la
 
 - **Windows only.** `captureGameWindow` returns nothing on other platforms, and PoE must be the focused window, so use the hotkey rather than the tab button.
 - **Exact 20/20 prices need the patched Scalpel.** Official Scalpel 1.0.5 drops poe.ninja's level/quality `variant` from the price data it gives plugins, so there every gem shows the range across all its listings (level 1 through 21/23c). The fork includes the fix ([`upstream/0001-price-entry-variant.patch`](upstream/0001-price-entry-variant.patch), also suitable as an upstream PR), and the plugin uses exact `20/20` prices when it's present.
+- Prices are poe.ninja's, so gems with very few listings can show unrealistic values (outlier asks dominate a thin market). This mostly settles once a league is active.
 - Only support gems are recognised, and only the `20/20` poe.ninja line is priced. Gems that never appear as 20/20 on poe.ninja (Awakened and exceptional supports, among others) show no price.
 
 ## Development
