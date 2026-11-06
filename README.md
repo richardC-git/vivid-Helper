@@ -29,7 +29,7 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
 
 ### Craft log and EV
 
-Every successful scan also feeds a craft log for working out what a Vivid Watcher is worth. The log is slot-based: a scan logs only the gems in slots that are new or changed since the last logged scan, so rescanning, reopening the overlay, or scanning after selling some gems never counts a gem twice. The overlay's status line says what each scan did ("+12 gems logged", "No new gems to log"). Scans with several unreadable cells aren't logged at all, and a gem that misreads once isn't recounted when it reads again. Moving a gem to another slot does count it again, so don't rearrange gems between scans (or use **Undo last scan**).
+Every successful scan also feeds a craft log for working out what a Vivid Watcher is worth. The log is slot-based: a scan logs only the gems in slots that are new or changed since the last logged scan, so rescanning, reopening the overlay, or scanning after selling some gems never counts a gem twice. The overlay's status line says what each scan did ("+12 gems logged", "No new gems to log"). Scans with several unreadable cells aren't logged at all, and a gem that misreads once isn't recounted when it reads again. When under a quarter of the gems are unchanged, the inventory is treated as a new run (the last one was sold or stashed) and everything is logged, so the same gem landing in the same slot in consecutive runs still counts. Moving a gem to another slot does count it again, so don't rearrange gems between scans (or use **Undo last scan**).
 
 The **Craft log** section in the tab shows, at current poe.ninja prices:
 
@@ -37,7 +37,13 @@ The **Craft log** section in the tab shows, at current poe.ninja prices:
 - **Profit per beast** against the Vivid Watcher's poe.ninja price, or a price you enter. **Refresh prices** asks Scalpel to re-fetch poe.ninja now.
 - The gems contributing most of the value.
 
-The log lives in Scalpel's plugin storage (`%APPDATA%\scalpel\plugins\gem-scanner\storage.json`, key `craftLog`), one entry per logged scan with each gem's name and slot.
+The log lives in Scalpel's plugin storage (`%APPDATA%\scalpel\plugins\gem-scanner\storage.json`, key `craftLog`): one entry per logged scan with its time, league, plugin version and icon-reference version, and for each gem its slot, name (look-alikes as all candidates), match distance and poe.ninja value at the time. **Copy CSV** puts it on the clipboard as one row per gem:
+
+```
+logged_at,league,slot,gem,candidates,match_distance,chaos_at_log,plugin,refs
+```
+
+Gems logged before 0.4.1 lack the league, distance, price and version columns.
 
 Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.
 

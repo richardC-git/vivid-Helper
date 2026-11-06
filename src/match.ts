@@ -8,6 +8,9 @@ export interface GemRef {
   fp: Fingerprint
 }
 
+/** item-data commit the bundled references were built from */
+export const REFS_SOURCE: string = refsData.source
+
 export const GEM_REFS: GemRef[] = refsData.gems.map((g) => ({
   name: g.name,
   icon: g.icon,

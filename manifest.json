@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
   "id": "gem-scanner",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "name": "Vivid Watcher Helper",
   "description": "Price an inventory of 20/20 support gems from Vivid Watcher crafts in one go: gems are recognised by their icon art and priced from poe.ninja.",
   "author": "bunzyy",

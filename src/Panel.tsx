@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
-import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, undoLastBatch } from './craftlog'
+import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, toCsv, undoLastBatch } from './craftlog'
 import { BEAST_NAME, ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
 import {
@@ -119,6 +119,15 @@ const SMALL_SAMPLE = 90
 function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   const { log, book, beastChaos, beastOverride } = useStore()
   const [confirmClear, setConfirmClear] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+  const copyCsv = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(toCsv(log))
+      setCopied(`Copied ${log.batches.reduce((n, b) => n + b.gems.length, 0)} rows`)
+    } catch {
+      setCopied("Couldn't reach the clipboard")
+    }
+  }
   const beastPrice = beastOverride ?? beastChaos
   const ev = useMemo(() => (book ? craftEv(log, book, beastPrice) : null), [log, book, beastPrice])
   const lastBatch = log.batches[log.batches.length - 1]
@@ -203,7 +212,10 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
+        <Button size="sm" variant="ghost" disabled={!log.batches.length} onClick={() => void copyCsv()}>
+          Copy CSV
+        </Button>
         <Button size="sm" variant="ghost" disabled={!lastBatch} onClick={() => save(undoLastBatch(log))}>
           {lastBatch ? `Undo last scan (${lastBatch.gems.length} gems)` : 'Undo last scan'}
         </Button>
@@ -220,6 +232,7 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
         >
           {confirmClear ? 'Click again to clear the log' : 'Clear log'}
         </Button>
+        {copied && <span style={{ ...muted, fontSize: 12 }}>{copied}</span>}
       </div>
     </details>
   )

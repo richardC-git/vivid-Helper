@@ -5,24 +5,44 @@ import type { Candidate, CellResult } from './match'
 import type { GemPrice, PriceBook } from './pricing'
 
 export const LOG_KEY = 'craftLog'
+/** 1: slot and gem only. 2: adds league, versions, match distance and the
+ *  chaos value at log time. Older entries simply lack the newer fields. */
+export const LOG_VERSION = 2
 export const GEMS_PER_BEAST = 3
 
 /** A cell's recorded identity: the gem name, or every look-alike candidate
  *  joined (sorted) when the art can't tell them apart. Always 20/20. */
 export type GemKey = string
 
+export interface LoggedGem {
+  slot: string
+  key: GemKey
+  /** Match distance of the best candidate (lower is surer) */
+  distance?: number
+  /** poe.ninja chaos value when logged; null if it had no 20/20 price */
+  chaos?: number | null
+}
+
 export interface Batch {
   at: number
-  gems: { slot: string; key: GemKey }[]
+  league?: string
+  /** Plugin version that logged it */
+  plugin?: string
+  /** item-data commit the icon references were built from */
+  refs?: string
+  /** The inventory was a fresh run, so unchanged slots counted too */
+  newRun?: boolean
+  gems: LoggedGem[]
 }
 
 export interface CraftLog {
+  version?: number
   batches: Batch[]
   /** slot ("col,row") -> gem last recorded there */
   snapshot: Record<string, GemKey>
 }
 
-export const EMPTY_LOG: CraftLog = { batches: [], snapshot: {} }
+export const EMPTY_LOG: CraftLog = { version: LOG_VERSION, batches: [], snapshot: {} }
 
 export function gemKey(candidates: Candidate[]): GemKey {
   return candidates
@@ -32,27 +52,41 @@ export function gemKey(candidates: Candidate[]): GemKey {
 }
 
 export type RecordOutcome =
-  | { kind: 'recorded'; count: number }
+  | { kind: 'recorded'; count: number; newRun: boolean }
   | { kind: 'none-new' }
   | { kind: 'skipped'; reason: string }
+
+export interface ScanMeta {
+  at: number
+  league: string
+  plugin: string
+  refs: string
+  /** Chaos value of a gem now, for the log's at-the-time price */
+  value: (key: GemKey) => number | null
+}
 
 /** Scans with this many unreadable cells (or more than this share of the
  *  occupied ones) aren't recorded: probably not a gem inventory, or the
  *  inventory was closed. */
 const MAX_UNKNOWN = 2
 const MAX_UNKNOWN_SHARE = 0.2
+/** Below this share of gems unchanged since the last logged scan, the
+ *  inventory is a new run (the last one was sold or stashed) and the few
+ *  unchanged slots are coincidences: the same gem landing in the same slot. */
+const NEW_RUN_MAX_UNCHANGED = 0.25
 
 /** Diff a scan against the log. Gems in slots that are new or changed since
  *  the last recorded scan form a new batch; every other slot is one already
- *  counted. The snapshot always becomes this scan's inventory. */
-export function recordScan(log: CraftLog, cells: CellResult[], at: number): { log: CraftLog; outcome: RecordOutcome } {
+ *  counted, unless so few are unchanged that this is a new run. The snapshot
+ *  always becomes this scan's inventory. */
+export function recordScan(log: CraftLog, cells: CellResult[], meta: ScanMeta): { log: CraftLog; outcome: RecordOutcome } {
   const occupied = cells.filter((c) => c.status !== 'empty')
   const unknown = occupied.filter((c) => c.status === 'unknown').length
   if (unknown > MAX_UNKNOWN && unknown > occupied.length * MAX_UNKNOWN_SHARE) {
     return { log, outcome: { kind: 'skipped', reason: `${unknown} unreadable cells` } }
   }
   const snapshot: Record<string, GemKey> = {}
-  const fresh: Batch['gems'] = []
+  const seen: { slot: string; key: GemKey; distance?: number; unchanged: boolean }[] = []
   for (const c of occupied) {
     const slot = `${c.col},${c.row}`
     // A cell that misreads once keeps what it was, so it isn't recounted
@@ -63,12 +97,31 @@ export function recordScan(log: CraftLog, cells: CellResult[], at: number): { lo
     }
     const key = gemKey(c.candidates)
     snapshot[slot] = key
-    if (log.snapshot[slot] !== key) fresh.push({ slot, key })
+    seen.push({ slot, key, distance: c.distance, unchanged: log.snapshot[slot] === key })
   }
-  if (!fresh.length) return { log: { ...log, snapshot }, outcome: { kind: 'none-new' } }
+  const unchanged = seen.filter((g) => g.unchanged).length
+  const newRun = unchanged > 0 && unchanged < seen.length * NEW_RUN_MAX_UNCHANGED
+  const fresh: LoggedGem[] = seen
+    .filter((g) => newRun || !g.unchanged)
+    .map((g) => ({
+      slot: g.slot,
+      key: g.key,
+      ...(g.distance === undefined ? {} : { distance: Math.round(g.distance * 10) / 10 }),
+      chaos: meta.value(g.key),
+    }))
+  const next = { ...log, version: LOG_VERSION, snapshot }
+  if (!fresh.length) return { log: next, outcome: { kind: 'none-new' } }
+  const batch: Batch = {
+    at: meta.at,
+    league: meta.league,
+    plugin: meta.plugin,
+    refs: meta.refs,
+    ...(newRun ? { newRun } : {}),
+    gems: fresh,
+  }
   return {
-    log: { batches: [...log.batches, { at, gems: fresh }], snapshot },
-    outcome: { kind: 'recorded', count: fresh.length },
+    log: { ...next, batches: [...log.batches, batch] },
+    outcome: { kind: 'recorded', count: fresh.length, newRun },
   }
 }
 
@@ -79,7 +132,7 @@ export function undoLastBatch(log: CraftLog): CraftLog {
   if (!last) return log
   const snapshot = { ...log.snapshot }
   for (const g of last.gems) if (snapshot[g.slot] === g.key) delete snapshot[g.slot]
-  return { batches: log.batches.slice(0, -1), snapshot }
+  return { ...log, batches: log.batches.slice(0, -1), snapshot }
 }
 
 export function gemCounts(log: CraftLog): Map<GemKey, number> {
@@ -160,4 +213,39 @@ export function craftEv(log: CraftLog, book: PriceBook, beastChaos: number | nul
     roi: profit === null || !beastChaos ? null : profit / beastChaos,
     rows,
   }
+}
+
+const CSV_COLUMNS = ['logged_at', 'league', 'slot', 'gem', 'candidates', 'match_distance', 'chaos_at_log', 'plugin', 'refs']
+
+function csvField(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return ''
+  const t = String(v)
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+}
+
+/** One row per logged gem, for spreadsheets and offline analysis. Slots are
+ *  1-based column-row, matching the tab's inventory-order view. */
+export function toCsv(log: CraftLog): string {
+  const lines = [CSV_COLUMNS.join(',')]
+  for (const b of log.batches) {
+    for (const g of b.gems) {
+      const [col, row] = g.slot.split(',').map(Number)
+      lines.push(
+        [
+          new Date(b.at).toISOString(),
+          b.league,
+          `${col + 1}-${row + 1}`,
+          g.key,
+          g.key.split(' | ').length,
+          g.distance,
+          g.chaos,
+          b.plugin,
+          b.refs,
+        ]
+          .map(csvField)
+          .join(','),
+      )
+    }
+  }
+  return `${lines.join('\n')}\n`
 }

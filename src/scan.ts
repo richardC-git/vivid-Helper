@@ -1,7 +1,8 @@
 import type { GameCapture, ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, type GridRect, inventoryGrid } from './grid'
-import { LOG_KEY, type RecordOutcome, recordScan } from './craftlog'
-import { type ScanResult, scanGrid } from './match'
+import { LOG_KEY, type RecordOutcome, gemValue, recordScan } from './craftlog'
+import { REFS_SOURCE, type ScanResult, scanGrid } from './match'
+import { ensurePriceBook } from './prices'
 import { OVERLAY_KEY, type OverlayPayload, buildOverlay, overlayGrid } from './overlay'
 import { getState, setState } from './store'
 
@@ -50,7 +51,16 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
       setState({ error: 'Path of Exile must be the focused window. Use the hotkey in-game with your inventory open.' })
       return
     }
-    const { log, outcome } = recordScan(getState().log, scan.cells, scan.at)
+    // Prices first, so the log records each gem's value at the time.
+    await ensurePriceBook(ctx).catch(() => {})
+    const book = getState().book
+    const { log, outcome } = recordScan(getState().log, scan.cells, {
+      at: scan.at,
+      league: ctx.getLeague(),
+      plugin: ctx.pluginVersion,
+      refs: REFS_SOURCE,
+      value: (key) => (book ? gemValue(key, book) : null),
+    })
     setState({ scan, log, logStatus: outcome })
     if (outcome.kind !== 'skipped') await ctx.storage.set(LOG_KEY, log)
   } catch (e) {
@@ -77,7 +87,8 @@ export async function publishOverlay(ctx: ScalpelPluginContext): Promise<void> {
 
 function statusText(outcome: RecordOutcome | null): string {
   if (!outcome) return ''
-  if (outcome.kind === 'recorded') return `+${outcome.count} ${outcome.count === 1 ? 'gem' : 'gems'} logged`
+  if (outcome.kind === 'recorded')
+    return `+${outcome.count} ${outcome.count === 1 ? 'gem' : 'gems'} logged${outcome.newRun ? ' (new run)' : ''}`
   if (outcome.kind === 'none-new') return 'No new gems to log'
   return `Not logged: ${outcome.reason}`
 }

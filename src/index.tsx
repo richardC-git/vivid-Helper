@@ -6,7 +6,6 @@ import { type Calibration, DEFAULT_CALIBRATION } from './grid'
 import { OverlayView } from './OverlayView'
 import { Panel } from './Panel'
 import { type CraftLog, EMPTY_LOG, LOG_KEY } from './craftlog'
-import { ensurePriceBook } from './prices'
 import {
   CALIBRATION_KEY,
   BEAST_PRICE_KEY,
@@ -67,7 +66,7 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
       ctx.closeOverlay()
       await new Promise((r) => setTimeout(r, OVERLAY_HIDE_MS))
     }
-    await Promise.all([runScan(ctx), ensurePriceBook(ctx).catch(() => {})])
+    await runScan(ctx)
     if (getState().error || !getState().scan || !getState().book) {
       ctx.openTab()
       return
