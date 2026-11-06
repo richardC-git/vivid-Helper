@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorBanner, Label, ScrubInput, formatPrice, type ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, INVENTORY_COLS, INVENTORY_ROWS } from './grid'
-import { ensurePriceBook } from './prices'
+import { EMPTY_LOG, GEMS_PER_BEAST, LOG_KEY, craftEv, undoLastBatch } from './craftlog'
+import { BEAST_NAME, ensurePriceBook } from './prices'
 import { TARGET_VARIANT } from './pricing'
 import {
+  BEAST_PRICE_KEY,
   CALIBRATION_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
@@ -111,6 +113,118 @@ function GridPreview({ scan }: { scan: ScanOutcome }): JSX.Element {
   return <canvas ref={ref} style={{ width: '100%', imageRendering: 'auto', borderRadius: 4 }} />
 }
 
+/** Sample size below which the EV interval is too wide to lean on. */
+const SMALL_SAMPLE = 90
+
+function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
+  const { log, book, beastChaos, beastOverride } = useStore()
+  const [confirmClear, setConfirmClear] = useState(false)
+  const beastPrice = beastOverride ?? beastChaos
+  const ev = useMemo(() => (book ? craftEv(log, book, beastPrice) : null), [log, book, beastPrice])
+  const lastBatch = log.batches[log.batches.length - 1]
+  const save = (next: typeof log): void => {
+    setState({ log: next, logStatus: null })
+    void ctx.storage.set(LOG_KEY, next)
+  }
+  const setBeastOverride = (v: number | null): void => {
+    const value = v !== null && v > 0 ? v : null
+    setState({ beastOverride: value })
+    void (value === null ? ctx.storage.delete(BEAST_PRICE_KEY) : ctx.storage.set(BEAST_PRICE_KEY, value))
+  }
+  const c = (v: number): string => `${formatPrice(v)}c`
+  return (
+    <details open style={{ marginTop: 16 }}>
+      <summary style={{ cursor: 'pointer' }}>
+        Craft log{ev && ev.gems > 0 ? ` - ${ev.gems} gems from ${log.batches.length} scans` : ''}
+      </summary>
+      <p style={{ ...muted, fontSize: 12 }}>
+        Each scan logs the gems in slots that changed since the last logged scan, so rescans and partly sold
+        inventories don't count twice. Every {GEMS_PER_BEAST} gems is one {BEAST_NAME}.
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <Label>{BEAST_NAME} price</Label>
+        <div style={{ width: 90 }}>
+          <ScrubInput value={beastPrice} onChange={setBeastOverride} min={0} step={1} suffix="c" />
+        </div>
+        <span style={{ ...muted, fontSize: 12 }}>
+          {beastOverride !== null
+            ? `your price (poe.ninja: ${beastChaos === null ? 'none' : c(beastChaos)}; clear to use it)`
+            : beastChaos === null
+              ? 'no poe.ninja price yet, enter one'
+              : 'from poe.ninja'}
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => void ctx.prices.refresh()}>
+          Refresh prices
+        </Button>
+      </div>
+
+      {ev && ev.gems > 0 && (
+        <div style={{ marginTop: 10, lineHeight: 1.6 }}>
+          <div>
+            EV per {BEAST_NAME}: <strong>{c(ev.evPerBeast)}</strong>
+            <span style={muted}> ± {c(ev.ci95)} (95%)</span>
+          </div>
+          {ev.profitPerBeast !== null && ev.roi !== null && (
+            <div>
+              Profit per beast: <strong>{c(ev.profitPerBeast)}</strong>
+              <span style={muted}>
+                {' '}
+                ({ev.roi >= 0 ? '+' : ''}
+                {Math.round(ev.roi * 100)}% on {c(ev.beastChaos ?? 0)})
+              </span>
+            </div>
+          )}
+          <div style={{ ...muted, fontSize: 12 }}>
+            Mean gem {c(ev.meanGem)} over {ev.gems} gems (~{Math.floor(ev.gems / GEMS_PER_BEAST)} beasts)
+            {ev.unpriced > 0 && `; ${ev.unpriced} without a 20/20 price counted as 0`}
+            {ev.gems < SMALL_SAMPLE && '. Small sample: a few lucky gems swing this a lot'}
+            . Uses current prices.
+          </div>
+          <table style={{ width: '100%', marginTop: 6, borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ ...muted, textAlign: 'left', fontSize: 11 }}>
+                <th style={cellPad}>Most value from</th>
+                <th style={{ ...cellPad, textAlign: 'right' }}>Seen</th>
+                <th style={{ ...cellPad, textAlign: 'right' }}>Each</th>
+                <th style={{ ...cellPad, textAlign: 'right' }}>Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ev.rows.slice(0, 10).map((r) => (
+                <tr key={r.key} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <td style={cellPad}>{r.key}</td>
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{r.count}</td>
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{r.unit === null ? '-' : c(r.unit)}</td>
+                  <td style={{ ...cellPad, textAlign: 'right' }}>{Math.round(r.share * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <Button size="sm" variant="ghost" disabled={!lastBatch} onClick={() => save(undoLastBatch(log))}>
+          {lastBatch ? `Undo last scan (${lastBatch.gems.length} gems)` : 'Undo last scan'}
+        </Button>
+        <Button
+          size="sm"
+          variant={confirmClear ? 'danger' : 'ghost'}
+          disabled={!log.batches.length && !confirmClear}
+          onClick={() => {
+            if (!confirmClear) return setConfirmClear(true)
+            save(EMPTY_LOG)
+            setConfirmClear(false)
+          }}
+          onBlur={() => setConfirmClear(false)}
+        >
+          {confirmClear ? 'Click again to clear the log' : 'Clear log'}
+        </Button>
+      </div>
+    </details>
+  )
+}
+
 function CalibrationPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
   const { calibration, scan } = useStore()
   const update = (patch: Partial<Calibration>): void => {
@@ -205,7 +319,7 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
           {scanning ? 'Scanning...' : 'Scan inventory'}
         </Button>
         <span style={{ ...muted, fontSize: 12 }}>
-          Tip: bind "Scan inventory gems" in Settings &gt; Macros and press it in game with your inventory open. Prices appear over your inventory; Esc hides them.
+          Tip: bind "Scan inventory gems" in Settings &gt; Macros and press it in game with your inventory open. Prices appear over your inventory; close them with the overlay's ✕ or your toggle hotkey.
         </span>
       </div>
 
@@ -308,6 +422,7 @@ export function Panel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
         </>
       )}
 
+      <CraftLogPanel ctx={ctx} />
       <CalibrationPanel ctx={ctx} />
     </div>
   )

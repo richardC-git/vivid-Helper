@@ -1,6 +1,7 @@
 // What the in-game overlay draws, computed in Scalpel's main overlay process
 // and handed to the annotation overlay window through plugin storage (the two
 // windows run separate copies of this plugin and share no memory).
+import { INVENTORY_COLS, INVENTORY_ROWS } from './grid'
 import type { PriceBook } from './pricing'
 import type { ScanOutcome } from './scan'
 import { priceRow } from './summary'
@@ -24,6 +25,21 @@ export interface OverlayPayload {
   /** Changes on every publish so the overlay can skip unchanged polls */
   stamp: number
   marks: OverlayMark[]
+  /** Inventory grid in game CSS px, for placing the overlay's controls */
+  grid: { x: number; y: number; width: number; height: number }
+  /** What the scan did to the craft log, e.g. "+12 gems logged" */
+  status: string
+}
+
+export function overlayGrid(scan: ScanOutcome): OverlayPayload['grid'] {
+  const { capture, grid, offset } = scan
+  const cell = grid.cell / capture.scale
+  return {
+    x: capture.origin.x + (grid.x + offset.dx) / capture.scale,
+    y: capture.origin.y + (grid.y + offset.dy) / capture.scale,
+    width: cell * INVENTORY_COLS,
+    height: cell * INVENTORY_ROWS,
+  }
 }
 
 /** Compact price label: "0.5c", "93c", "1.2kc", or divines from one up when

@@ -2,6 +2,8 @@ import type { ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { GEM_CATEGORY, buildPriceBook } from './pricing'
 import { setState } from './store'
 
+export const BEAST_NAME = 'Vivid Watcher'
+
 let ready: Promise<void> | null = null
 
 /** Load the price book into the store once, and keep it current as Scalpel
@@ -10,11 +12,20 @@ let ready: Promise<void> | null = null
 export function ensurePriceBook(ctx: ScalpelPluginContext): Promise<void> {
   if (ready) return ready
   const load = async (): Promise<void> => {
-    const [gems, currency] = await Promise.all([
+    const [gems, currency, beasts] = await Promise.all([
       ctx.prices.getPrices({ category: GEM_CATEGORY }),
       ctx.prices.getPrices({ category: 'currency' }),
+      ctx.prices.getPrices({ category: 'beast' }),
     ])
-    setState({ book: buildPriceBook(gems.prices, currency.prices, gems.updatedAt) })
+    // Scalpel slugs poe.ninja's Beast overview as 'beast'; search everything
+    // if that ever changes.
+    const beast =
+      beasts.prices.find((p) => p.name === BEAST_NAME) ??
+      (await ctx.prices.getPrices()).prices.find((p) => p.name === BEAST_NAME)
+    setState({
+      book: buildPriceBook(gems.prices, currency.prices, gems.updatedAt),
+      beastChaos: beast?.chaosValue ?? null,
+    })
   }
   ctx.prices.onChange(() => void load())
   ready = load().catch((e) => {

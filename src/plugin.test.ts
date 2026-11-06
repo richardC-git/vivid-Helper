@@ -4,6 +4,7 @@ import { FP_SIZE, type Fingerprint } from './fingerprint'
 import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
+import { EMPTY_LOG, craftEv, gemCounts, recordScan, undoLastBatch } from './craftlog'
 import { buildOverlay, formatValue } from './overlay'
 import type { ScanOutcome } from './scan'
 import { inventoryOrder, summarize } from './summary'
@@ -185,5 +186,71 @@ describe('buildOverlay', () => {
     expect(formatValue(93.4, 200)).toBe('93c')
     expect(formatValue(1500, null)).toBe('1.5kc')
     expect(formatValue(300, 200)).toBe('1.5d')
+  })
+})
+
+describe('craft log', () => {
+  const at = (col: number, row: number, ...names: string[]) => ({
+    col,
+    row,
+    status: names.length ? ('matched' as const) : ('unknown' as const),
+    candidates: names.map((name) => ({ name, icon: '', distance: 1 })),
+  })
+  const first = [at(0, 0, 'A Support'), at(0, 1, 'B Support'), at(1, 0, 'Minion Pact Support', 'Communion Support')]
+
+  it('logs a new inventory once, however often it is rescanned', () => {
+    const one = recordScan(EMPTY_LOG, first, 1)
+    expect(one.outcome).toEqual({ kind: 'recorded', count: 3 })
+    const again = recordScan(one.log, first, 2)
+    expect(again.outcome).toEqual({ kind: 'none-new' })
+    expect(again.log.batches).toHaveLength(1)
+    expect(gemCounts(again.log).get('Communion Support | Minion Pact Support')).toBe(1)
+  })
+
+  it('logs only the changed slots after selling some and crafting more', () => {
+    const { log } = recordScan(EMPTY_LOG, first, 1)
+    // A sold, B kept, a new gem where A was and one in a fresh slot.
+    const next = recordScan(log, [at(0, 0, 'C Support'), at(0, 1, 'B Support'), at(2, 0, 'A Support')], 2)
+    expect(next.outcome).toEqual({ kind: 'recorded', count: 2 })
+    expect(gemCounts(next.log).get('A Support')).toBe(2)
+    expect(gemCounts(next.log).get('B Support')).toBe(1)
+  })
+
+  it("doesn't recount a gem that misread for one scan", () => {
+    const { log } = recordScan(EMPTY_LOG, first, 1)
+    const misread = recordScan(log, [at(0, 0), at(0, 1, 'B Support')], 2).log
+    expect(recordScan(misread, [at(0, 0, 'A Support'), at(0, 1, 'B Support')], 3).outcome.kind).toBe('none-new')
+  })
+
+  it('skips scans that are mostly unreadable', () => {
+    const r = recordScan(EMPTY_LOG, [at(0, 0, 'A Support'), at(1, 0), at(2, 0), at(3, 0)], 1)
+    expect(r.outcome.kind).toBe('skipped')
+    expect(r.log).toBe(EMPTY_LOG)
+  })
+
+  it('undo forgets the batch so a rescan logs it again', () => {
+    const { log } = recordScan(EMPTY_LOG, first, 1)
+    const undone = undoLastBatch(log)
+    expect(undone.batches).toHaveLength(0)
+    expect(recordScan(undone, first, 2).outcome).toEqual({ kind: 'recorded', count: 3 })
+  })
+
+  it('values a beast as three times the mean gem, unpriced as zero', () => {
+    const book = buildPriceBook(
+      [gem('A Support', 30, '20/20'), gem('Communion Support', 10, '20/20'), gem('Minion Pact Support', 20, '20/20')],
+      [],
+      null,
+    )
+    const log = recordScan(EMPTY_LOG, [...first.slice(0, 1), at(0, 1, 'Unlisted Support'), first[2]], 1).log
+    // Values 30, 0, and the look-alike's mean of 10 and 20 = 15.
+    const ev = craftEv(log, book, 20)
+    expect(ev.gems).toBe(3)
+    expect(ev.unpriced).toBe(1)
+    expect(ev.meanGem).toBe(15)
+    expect(ev.evPerBeast).toBe(45)
+    expect(ev.profitPerBeast).toBe(25)
+    expect(ev.roi).toBe(1.25)
+    expect(ev.ci95).toBeCloseTo(3 * 1.96 * Math.sqrt(225 / 3), 6)
+    expect(ev.rows[0]).toMatchObject({ key: 'A Support', share: 30 / 45 })
   })
 })

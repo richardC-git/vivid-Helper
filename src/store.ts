@@ -2,6 +2,7 @@
 // Scalpel's main overlay process, so a plain store is enough.
 import { useSyncExternalStore } from 'react'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
+import { type CraftLog, EMPTY_LOG, type RecordOutcome } from './craftlog'
 import type { PriceBook } from './pricing'
 import type { ListOrder, ScanOutcome } from './scan'
 
@@ -18,6 +19,13 @@ export interface State {
   hideUnpriced: boolean
   /** Label the overlay in chaos even for gems worth a divine or more */
   chaosOnly: boolean
+  log: CraftLog
+  /** What the last scan did to the log, shown on the overlay */
+  logStatus: RecordOutcome | null
+  /** Vivid Watcher price from poe.ninja */
+  beastChaos: number | null
+  /** User-entered beast price, used instead of poe.ninja's when set */
+  beastOverride: number | null
 }
 
 let state: State = {
@@ -30,6 +38,10 @@ let state: State = {
   threshold: null,
   hideUnpriced: false,
   chaosOnly: false,
+  log: EMPTY_LOG,
+  logStatus: null,
+  beastChaos: null,
+  beastOverride: null,
 }
 const listeners = new Set<() => void>()
 

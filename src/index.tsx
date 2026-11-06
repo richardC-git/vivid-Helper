@@ -5,9 +5,11 @@ import type { ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, DEFAULT_CALIBRATION } from './grid'
 import { OverlayView } from './OverlayView'
 import { Panel } from './Panel'
+import { type CraftLog, EMPTY_LOG, LOG_KEY } from './craftlog'
 import { ensurePriceBook } from './prices'
 import {
   CALIBRATION_KEY,
+  BEAST_PRICE_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
   type ListOrder,
@@ -35,6 +37,10 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   if (typeof threshold === 'number') setState({ threshold })
   if ((await ctx.storage.get<boolean>(HIDE_UNPRICED_KEY)) === true) setState({ hideUnpriced: true })
   if ((await ctx.storage.get<boolean>(CHAOS_ONLY_KEY)) === true) setState({ chaosOnly: true })
+  const log = await ctx.storage.get<CraftLog>(LOG_KEY)
+  if (log?.batches && log.snapshot) setState({ log: { ...EMPTY_LOG, ...log } })
+  const beastOverride = await ctx.storage.get<number>(BEAST_PRICE_KEY)
+  if (typeof beastOverride === 'number') setState({ beastOverride })
 
   // Keep the overlay in step with rescans (incl. calibration tweaks), price
   // refreshes and threshold changes.
@@ -84,7 +90,9 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   })
 
   ctx.registerOverlay(
-    { title: NAME, icon, mode: 'annotation', hotkeyLabel: 'Toggle gem overlay', dismissOnEscape: true },
+    // No dismissOnEscape: Esc is a habit key in PoE, so the overlay closes from
+    // its own button or the toggle hotkey.
+    { title: NAME, icon, mode: 'annotation', hotkeyLabel: 'Toggle gem overlay' },
     (container) => {
       const overlayRoot = createRoot(container)
       overlayRoot.render(<OverlayView ctx={ctx} />)

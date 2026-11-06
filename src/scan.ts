@@ -1,7 +1,8 @@
 import type { GameCapture, ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, type GridRect, inventoryGrid } from './grid'
+import { LOG_KEY, type RecordOutcome, recordScan } from './craftlog'
 import { type ScanResult, scanGrid } from './match'
-import { OVERLAY_KEY, type OverlayPayload, buildOverlay } from './overlay'
+import { OVERLAY_KEY, type OverlayPayload, buildOverlay, overlayGrid } from './overlay'
 import { getState, setState } from './store'
 
 export interface ScanOutcome extends ScanResult {
@@ -35,6 +36,7 @@ export const ORDER_KEY = 'order'
 export const THRESHOLD_KEY = 'threshold'
 export const HIDE_UNPRICED_KEY = 'hideUnpriced'
 export const CHAOS_ONLY_KEY = 'chaosOnly'
+export const BEAST_PRICE_KEY = 'beastPrice'
 
 /** Results list order: grouped by value, or one row per cell as laid out. */
 export type ListOrder = 'value' | 'inventory'
@@ -44,8 +46,13 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
   setState({ scanning: true, error: null })
   try {
     const scan = await captureAndScan(ctx, getState().calibration)
-    if (scan) setState({ scan })
-    else setState({ error: 'Path of Exile must be the focused window. Use the hotkey in-game with your inventory open.' })
+    if (!scan) {
+      setState({ error: 'Path of Exile must be the focused window. Use the hotkey in-game with your inventory open.' })
+      return
+    }
+    const { log, outcome } = recordScan(getState().log, scan.cells, scan.at)
+    setState({ scan, log, logStatus: outcome })
+    if (outcome.kind !== 'skipped') await ctx.storage.set(LOG_KEY, log)
   } catch (e) {
     ctx.log('scan failed', e)
     setState({ error: `Scan failed: ${e instanceof Error ? e.message : String(e)}` })
@@ -59,6 +66,18 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
 export async function publishOverlay(ctx: ScalpelPluginContext): Promise<void> {
   const { scan, book, threshold, hideUnpriced, chaosOnly } = getState()
   if (!scan || !book) return
-  const payload: OverlayPayload = { stamp: Date.now(), marks: buildOverlay(scan, book, threshold, hideUnpriced, chaosOnly) }
+  const payload: OverlayPayload = {
+    stamp: Date.now(),
+    marks: buildOverlay(scan, book, threshold, hideUnpriced, chaosOnly),
+    grid: overlayGrid(scan),
+    status: statusText(getState().logStatus),
+  }
   await ctx.storage.set(OVERLAY_KEY, payload)
+}
+
+function statusText(outcome: RecordOutcome | null): string {
+  if (!outcome) return ''
+  if (outcome.kind === 'recorded') return `+${outcome.count} ${outcome.count === 1 ? 'gem' : 'gems'} logged`
+  if (outcome.kind === 'none-new') return 'No new gems to log'
+  return `Not logged: ${outcome.reason}`
 }

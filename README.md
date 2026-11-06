@@ -22,10 +22,22 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
    - **amber** with `?`: look-alike art, labelled with the higher candidate's price
    - **dashed**: no 20/20 price on poe.ninja; **red**: unreadable cell
 
-   The overlay is click-through, so you can hover and move gems underneath it. Esc (or the toggle hotkey) hides it. It shows the last scan, so rescan after moving or selling gems. If a scan fails, the tab opens instead to show why.
+   The overlay is click-through, so you can hover and move gems underneath it. Close it with the ✕ above the inventory or the toggle hotkey; Esc deliberately doesn't close it. It shows the last scan, so rescan after moving or selling gems. If a scan fails, the tab opens instead to show why.
 3. The plugin's tab in Scalpel lists each gem type with its count, unit price and total, plus a grand total in chaos and divines.
 4. Set **Min price** in the tab to hide cheap gems: they collapse into one "N gems under X" row that still counts towards the total, and fade on the overlay. Look-alikes and price ranges are judged by their highest possible value. Clear it to show everything. **Hide no-price** leaves gems without a 20/20 price off the overlay and the list too. **Chaos only** labels the overlay in chaos even for gems worth a divine or more (the list is always in chaos).
 5. Switch the list to **Inventory order** to get one row per gem in the order PoE fills the inventory (down each column, then across), with its slot as column-row, so you can work through the inventory alongside it. Both choices are remembered.
+
+### Craft log and EV
+
+Every successful scan also feeds a craft log for working out what a Vivid Watcher is worth. The log is slot-based: a scan logs only the gems in slots that are new or changed since the last logged scan, so rescanning, reopening the overlay, or scanning after selling some gems never counts a gem twice. The overlay's status line says what each scan did ("+12 gems logged", "No new gems to log"). Scans with several unreadable cells aren't logged at all, and a gem that misreads once isn't recounted when it reads again. Moving a gem to another slot does count it again, so don't rearrange gems between scans (or use **Undo last scan**).
+
+The **Craft log** section in the tab shows, at current poe.ninja prices:
+
+- **EV per Vivid Watcher**: 3 x the mean logged gem value, with a 95% confidence interval. Gems with no 20/20 price count as 0; look-alikes count as the mean of their candidates.
+- **Profit per beast** against the Vivid Watcher's poe.ninja price, or a price you enter. **Refresh prices** asks Scalpel to re-fetch poe.ninja now.
+- The gems contributing most of the value.
+
+The log lives in Scalpel's plugin storage (`%APPDATA%\scalpel\plugins\gem-scanner\storage.json`, key `craftLog`), one entry per logged scan with each gem's name and slot.
 
 Rows marked **look-alike art** are gems whose icons can't be told apart, e.g. *Communion* and *Minion Pact*, which share identical art. Both candidates and their prices are shown, so hover the gem in game to see which it is.
 
