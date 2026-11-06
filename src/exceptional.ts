@@ -47,12 +47,14 @@ export function rankExceptional(lines: GemListing[], maxPrice: number | null): E
 
 const TRADE_SEARCH = 'https://www.pathofexile.com/trade/search'
 
-/** Trade-site search for a gem, uncorrupted, cheapest first. The query rides
- *  in the URL (`?q=`), so opening it costs no trade API request. */
+/** Trade-site search for a gem: instant buyout, uncorrupted, cheapest first.
+ *  The query rides in the URL (`?q=`), so opening it costs no trade API
+ *  request. */
 export function tradeSearchUrl(name: string, league: string): string {
   const query = {
     query: {
-      status: { option: 'online' },
+      // 'securable' is the trade site's Instant Buyout status
+      status: { option: 'securable' },
       type: name,
       filters: { misc_filters: { filters: { corrupted: { option: 'false' } } } },
     },

@@ -344,12 +344,12 @@ describe('exceptional finder', () => {
     expect(rankExceptional(lines, null).find((p) => p.name === 'Empower Support')?.chaos).toBe(45)
   })
 
-  it('links a cheapest-first, uncorrupted trade search in the league', () => {
+  it('links an instant-buyout, cheapest-first, uncorrupted trade search in the league', () => {
     const url = new URL(tradeSearchUrl('Gluttony Support', 'Hardcore Allflame'))
     expect(url.origin + url.pathname).toBe('https://www.pathofexile.com/trade/search/Hardcore%20Allflame')
     expect(JSON.parse(url.searchParams.get('q') ?? '')).toEqual({
       query: {
-        status: { option: 'online' },
+        status: { option: 'securable' },
         type: 'Gluttony Support',
         filters: { misc_filters: { filters: { corrupted: { option: 'false' } } } },
       },
