@@ -4,14 +4,14 @@ Prices the **level 20 / quality 20 support gems** that Vivid Watcher crafts prod
 
 ## Installing
 
-The easiest way is the patched Scalpel build from the fork (`../scalpel-gems`, branch `gem-scanner`). It comes with this plugin preinstalled and exposes the price variant needed for exact 20/20 prices:
+The easiest way is the patched Scalpel build from the fork, [richardC-git/scalpel](https://github.com/richardC-git/scalpel) (branch `gem-scanner`). It comes with this plugin preinstalled, plus the host changes the plugin relies on: exact 20/20 prices (poe.ninja's level/quality variant), gem listing counts for the exceptional gem finder, and two fixes (plugins load after a game switch; hotkeys disarm when focus leaves Scalpel for another app):
 
-1. Download `Scalpel-Setup.exe` from the fork's GitHub Releases and run it. It installs over an existing Scalpel and keeps your settings. The build is unsigned, so Windows SmartScreen will ask: click *More info* > *Run anyway*.
+1. Download `Scalpel-Setup.exe` from the fork's [Releases](https://github.com/richardC-git/scalpel/releases/latest) and run it. It installs over an existing Scalpel and keeps your settings. The build is unsigned, so Windows SmartScreen will ask: click *More info* > *Run anyway*.
 2. Launch Scalpel. The **Vivid Watcher Helper** tab is already there.
 
 The fork's auto-updater follows the fork's own releases, so upstream Scalpel releases won't replace it. To get back to official Scalpel, reinstall it from upstream.
 
-To ship a new plugin version in the fork: bump `version` in `manifest.json`, run `npm run bundle`, then commit in the fork and cut a release there.
+To ship a new plugin version in the fork: bump `version` in `manifest.json`, run `npm run bundle` (it copies the build into a fork checkout at `../scalpel-gems` by default), then bump the fork's version, commit, and push a `v<version>` tag there to cut a release.
 
 ## Using it
 
