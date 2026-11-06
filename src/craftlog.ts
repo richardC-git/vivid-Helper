@@ -55,6 +55,7 @@ export type RecordOutcome =
   | { kind: 'recorded'; count: number; newRun: boolean }
   | { kind: 'none-new' }
   | { kind: 'skipped'; reason: string }
+  | { kind: 'disabled' }
 
 export interface ScanMeta {
   at: number
@@ -123,6 +124,16 @@ export function recordScan(log: CraftLog, cells: CellResult[], meta: ScanMeta): 
     log: { ...next, batches: [...log.batches, batch] },
     outcome: { kind: 'recorded', count: fresh.length, newRun },
   }
+}
+
+/** Logging switched off (testing): keep the updated slot memory so gems
+ *  scanned now aren't logged once it's back on, but add no batch. */
+export function observeOnly(prev: CraftLog, recorded: { log: CraftLog; outcome: RecordOutcome }): {
+  log: CraftLog
+  outcome: RecordOutcome
+} {
+  if (recorded.outcome.kind === 'skipped') return recorded
+  return { log: { ...recorded.log, batches: prev.batches }, outcome: { kind: 'disabled' } }
 }
 
 /** Drop the newest batch and forget its slots, so rescanning the same

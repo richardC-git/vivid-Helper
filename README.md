@@ -31,6 +31,8 @@ To ship a new plugin version in the fork: bump `version` in `manifest.json`, run
 
 Every successful scan also feeds a craft log for working out what a Vivid Watcher is worth. The log is slot-based: a scan logs only the gems in slots that are new or changed since the last logged scan, so rescanning, reopening the overlay, or scanning after selling some gems never counts a gem twice. The overlay's status line says what each scan did ("+12 gems logged", "No new gems to log"). Scans with several unreadable cells aren't logged at all, and a gem that misreads once isn't recounted when it reads again. When under a quarter of the gems are unchanged, the inventory is treated as a new run (the last one was sold or stashed) and everything is logged, so the same gem landing in the same slot in consecutive runs still counts. Moving a gem to another slot does count it again, so don't rearrange gems between scans (or use **Undo last scan**).
 
+For testing, switch **Logging off** in the Craft log section. Scans then still track what's in each slot but add nothing to the log, so gems scanned while testing aren't swept in when logging is turned back on; only gems that change afterwards are logged. The overlay's status line reads "Logging off" as a reminder.
+
 The **Craft log** section in the tab shows, at current poe.ninja prices:
 
 - **EV per Vivid Watcher**: 3 x the mean logged gem value, with a 95% confidence interval. Gems with no 20/20 price count as 0; look-alikes count as the mean of their candidates.

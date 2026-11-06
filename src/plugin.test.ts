@@ -4,7 +4,7 @@ import { FP_SIZE, type Fingerprint } from './fingerprint'
 import { DEFAULT_CALIBRATION, inventoryGrid } from './grid'
 import { GEM_REFS, matchCell } from './match'
 import { buildPriceBook } from './pricing'
-import { EMPTY_LOG, type ScanMeta, craftEv, gemCounts, recordScan, toCsv, undoLastBatch } from './craftlog'
+import { EMPTY_LOG, type ScanMeta, craftEv, gemCounts, observeOnly, recordScan, toCsv, undoLastBatch } from './craftlog'
 import { buildOverlay, formatValue } from './overlay'
 import type { ScanOutcome } from './scan'
 import { inventoryOrder, summarize } from './summary'
@@ -241,6 +241,13 @@ describe('craft log', () => {
       'logged_at,league,slot,gem,candidates,match_distance,chaos_at_log,plugin,refs',
       '2026-11-05T00:00:00.000Z,Allflame,1-1,A Support,1,1,7,0.4.1,abc',
     ])
+  })
+
+  it('with logging off, logs nothing now or once it is back on', () => {
+    const off = observeOnly(EMPTY_LOG, recordScan(EMPTY_LOG, first, meta(1)))
+    expect(off.outcome.kind).toBe('disabled')
+    expect(off.log.batches).toHaveLength(0)
+    expect(recordScan(off.log, first, meta(2)).outcome.kind).toBe('none-new')
   })
 
   it('skips scans that are mostly unreadable', () => {

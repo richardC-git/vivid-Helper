@@ -11,6 +11,7 @@ import {
   BEAST_PRICE_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
+  LOGGING_KEY,
   type ListOrder,
   ORDER_KEY,
   THRESHOLD_KEY,
@@ -40,6 +41,7 @@ export default async function activate(ctx: ScalpelPluginContext): Promise<void>
   if (log?.batches && log.snapshot) setState({ log: { ...EMPTY_LOG, ...log } })
   const beastOverride = await ctx.storage.get<number>(BEAST_PRICE_KEY)
   if (typeof beastOverride === 'number') setState({ beastOverride })
+  if ((await ctx.storage.get<boolean>(LOGGING_KEY)) === false) setState({ logging: false })
 
   // Keep the overlay in step with rescans (incl. calibration tweaks), price
   // refreshes and threshold changes.

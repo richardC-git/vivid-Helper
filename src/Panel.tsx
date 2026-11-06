@@ -7,6 +7,7 @@ import { TARGET_VARIANT } from './pricing'
 import {
   BEAST_PRICE_KEY,
   CALIBRATION_KEY,
+  LOGGING_KEY,
   CHAOS_ONLY_KEY,
   HIDE_UNPRICED_KEY,
   ORDER_KEY,
@@ -117,7 +118,7 @@ function GridPreview({ scan }: { scan: ScanOutcome }): JSX.Element {
 const SMALL_SAMPLE = 90
 
 function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
-  const { log, book, beastChaos, beastOverride } = useStore()
+  const { log, book, beastChaos, beastOverride, logging } = useStore()
   const [confirmClear, setConfirmClear] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const copyCsv = async (): Promise<void> => {
@@ -135,6 +136,10 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
     setState({ log: next, logStatus: null })
     void ctx.storage.set(LOG_KEY, next)
   }
+  const toggleLogging = (): void => {
+    setState({ logging: !logging })
+    void ctx.storage.set(LOGGING_KEY, !logging)
+  }
   const setBeastOverride = (v: number | null): void => {
     const value = v !== null && v > 0 ? v : null
     setState({ beastOverride: value })
@@ -145,7 +150,18 @@ function CraftLogPanel({ ctx }: { ctx: ScalpelPluginContext }): JSX.Element {
     <details open style={{ marginTop: 16 }}>
       <summary style={{ cursor: 'pointer' }}>
         Craft log{ev && ev.gems > 0 ? ` - ${ev.gems} gems from ${log.batches.length} scans` : ''}
+        {!logging && <span style={{ color: '#f5a623' }}> (logging off)</span>}
       </summary>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+        <Button size="sm" variant={logging ? 'primary' : 'ghost'} onClick={toggleLogging}>
+          {logging ? 'Logging on' : 'Logging off'}
+        </Button>
+        <span style={{ ...muted, fontSize: 12 }}>
+          {logging
+            ? 'Turn off while testing. Scans keep track of the inventory but log nothing.'
+            : "Scans aren't logged. Gems scanned now won't be logged later either; only ones that change after it's back on."}
+        </span>
+      </div>
       <p style={{ ...muted, fontSize: 12 }}>
         Each scan logs the gems in slots that changed since the last logged scan, so rescans and partly sold
         inventories don't count twice. Every {GEMS_PER_BEAST} gems is one {BEAST_NAME}.

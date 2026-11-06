@@ -1,6 +1,6 @@
 import type { GameCapture, ScalpelPluginContext } from '@scalpelpoe/plugin-sdk'
 import { type Calibration, type GridRect, inventoryGrid } from './grid'
-import { LOG_KEY, type RecordOutcome, gemValue, recordScan } from './craftlog'
+import { LOG_KEY, type RecordOutcome, gemValue, observeOnly, recordScan } from './craftlog'
 import { REFS_SOURCE, type ScanResult, scanGrid } from './match'
 import { ensurePriceBook } from './prices'
 import { OVERLAY_KEY, type OverlayPayload, buildOverlay, overlayGrid } from './overlay'
@@ -38,6 +38,7 @@ export const THRESHOLD_KEY = 'threshold'
 export const HIDE_UNPRICED_KEY = 'hideUnpriced'
 export const CHAOS_ONLY_KEY = 'chaosOnly'
 export const BEAST_PRICE_KEY = 'beastPrice'
+export const LOGGING_KEY = 'logging'
 
 /** Results list order: grouped by value, or one row per cell as laid out. */
 export type ListOrder = 'value' | 'inventory'
@@ -54,13 +55,15 @@ export async function runScan(ctx: ScalpelPluginContext): Promise<void> {
     // Prices first, so the log records each gem's value at the time.
     await ensurePriceBook(ctx).catch(() => {})
     const book = getState().book
-    const { log, outcome } = recordScan(getState().log, scan.cells, {
+    const prev = getState().log
+    const recorded = recordScan(prev, scan.cells, {
       at: scan.at,
       league: ctx.getLeague(),
       plugin: ctx.pluginVersion,
       refs: REFS_SOURCE,
       value: (key) => (book ? gemValue(key, book) : null),
     })
+    const { log, outcome } = getState().logging ? recorded : observeOnly(prev, recorded)
     setState({ scan, log, logStatus: outcome })
     if (outcome.kind !== 'skipped') await ctx.storage.set(LOG_KEY, log)
   } catch (e) {
@@ -90,5 +93,6 @@ function statusText(outcome: RecordOutcome | null): string {
   if (outcome.kind === 'recorded')
     return `+${outcome.count} ${outcome.count === 1 ? 'gem' : 'gems'} logged${outcome.newRun ? ' (new run)' : ''}`
   if (outcome.kind === 'none-new') return 'No new gems to log'
+  if (outcome.kind === 'disabled') return 'Logging off'
   return `Not logged: ${outcome.reason}`
 }

@@ -26,6 +26,8 @@ export interface State {
   beastChaos: number | null
   /** User-entered beast price, used instead of poe.ninja's when set */
   beastOverride: number | null
+  /** Off for testing: scans update the slot memory but add nothing to the log */
+  logging: boolean
 }
 
 let state: State = {
@@ -42,6 +44,7 @@ let state: State = {
   logStatus: null,
   beastChaos: null,
   beastOverride: null,
+  logging: true,
 }
 const listeners = new Set<() => void>()
 
